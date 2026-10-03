@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { fetchGeoLocation, fetchBirthChart, checkServerHealth } from "../lib/api";
 
 type P = { name: string; sign: string; deg: number; house: number };
 type Chart = { asc: string; planets: P[]; aspects: string[] };
@@ -92,6 +93,7 @@ export default function App() {
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
   const [ok, setOk] = useState(true);
+  const [serverOnline, setServerOnline] = useState<boolean | null>(null);
 
   useEffect(() => {
     try {
@@ -99,6 +101,9 @@ export default function App() {
       setHist(JSON.parse(localStorage.getItem("hist") || "[]"));
     } catch {}
     navigator.serviceWorker?.register("/sw.js").catch(() => {});
+
+    // Check Express API server connectivity
+    checkServerHealth().then(res => setServerOnline(!!res));
   }, []);
 
   const handleTextChange = (k: string) => (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -130,18 +135,15 @@ export default function App() {
     setErr("");
     setBusy(true);
     try {
-      const gRes = await fetch("/api/geo?q=" + encodeURIComponent(f.place));
-      const g = await gRes.json();
-      if (!gRes.ok || g.error) throw new Error(g.error || "Could not locate birthplace");
+      const g = await fetchGeoLocation(f.place);
       setGeo(g);
 
-      const cRes = await fetch("/api/chart", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ date: f.date, time: f.time, lat: g.lat, lon: g.lon })
+      const c = await fetchBirthChart({
+        date: f.date,
+        time: f.time,
+        lat: g.lat,
+        lon: g.lon
       });
-      const c = await cRes.json();
-      if (!cRes.ok || c.error) throw new Error(c.error || "Could not calculate birth chart");
       setChart(c);
       setStep("ask");
     } catch (e) {
@@ -195,6 +197,19 @@ export default function App() {
               ✨
             </span>
             <span className="font-semibold tracking-wide text-base text-[#EDE9FA]">Astro Reports</span>
+            {serverOnline !== null && (
+              <span
+                className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium border transition-colors ${
+                  serverOnline
+                    ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
+                    : "bg-amber-500/10 text-amber-300 border-amber-500/30"
+                }`}
+                title={serverOnline ? "Backend Express Server Connected" : "Connecting to Express Server..."}
+              >
+                <span className={`h-1.5 w-1.5 rounded-full ${serverOnline ? "bg-emerald-400 animate-pulse" : "bg-amber-400"}`} />
+                {serverOnline ? "API Live" : "API Offline"}
+              </span>
+            )}
           </div>
           {sub ? (
             <span className="rounded-full bg-[#E8B86B]/20 px-2.5 py-0.5 text-xs font-medium text-[#E8B86B] border border-[#E8B86B]/30">

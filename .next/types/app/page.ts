@@ -1,4 +1,4 @@
-// File: C:\Users\USER\Downloads\astro-pwa\client\app\page.tsx
+// File: C:\Prj\astrology-pwa\app\page.tsx
 import * as entry from '../../../app/page.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 
