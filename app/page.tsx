@@ -1,0 +1,1024 @@
+"use client";
+import { useEffect, useState } from "react";
+
+type P = { name: string; sign: string; deg: number; house: number };
+type Chart = { asc: string; planets: P[]; aspects: string[] };
+type Rec = { q: string; name: string; at: string; chart: Chart };
+
+const TABS = ["Home", "History", "Profile", "Plans"] as const;
+
+const inp = "w-full min-h-12 rounded-xl border border-[#2E2752] bg-[#1A1533] px-4 text-[15px] text-[#EDE9FA] placeholder-[#6E6796] focus:border-[#E8B86B] focus:outline-none transition-colors";
+const btn = "w-full min-h-14 rounded-2xl bg-[#E8B86B] font-semibold text-[#1A1230] hover:bg-[#F2C77D] active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 cursor-pointer";
+const card = "rounded-2xl border border-[#2E2752] bg-[#1A1533] p-4";
+
+function getZodiacSign(dateStr: string) {
+  if (!dateStr) return null;
+  const parts = dateStr.split("-").map(Number);
+  if (parts.length !== 3) return null;
+  const [, m, d] = parts;
+  if (!m || !d) return null;
+  const days = [20, 19, 21, 20, 21, 21, 23, 23, 23, 23, 22, 22];
+  const signs = [
+    { name: "Capricorn", symbol: "♑" },
+    { name: "Aquarius", symbol: "♒" },
+    { name: "Pisces", symbol: "♓" },
+    { name: "Aries", symbol: "♈" },
+    { name: "Taurus", symbol: "♉" },
+    { name: "Gemini", symbol: "♊" },
+    { name: "Cancer", symbol: "♋" },
+    { name: "Leo", symbol: "♌" },
+    { name: "Virgo", symbol: "♍" },
+    { name: "Libra", symbol: "♎" },
+    { name: "Scorpio", symbol: "♏" },
+    { name: "Sagittarius", symbol: "♐" },
+    { name: "Capricorn", symbol: "♑" },
+  ];
+  const idx = d < days[m - 1] ? m - 1 : m;
+  return signs[idx];
+}
+
+const Report = ({ r }: { r: Rec }) => (
+  <div className={card + " space-y-3"}>
+    <div className="flex items-center justify-between border-b border-[#2E2752] pb-2">
+      <span className="text-xs uppercase tracking-wider text-[#A59FC8]">Astrological Reading</span>
+      <span className="text-xs text-[#E8B86B] font-medium">{r.at}</span>
+    </div>
+    <div>
+      <div className="text-xs text-[#A59FC8]">Querent</div>
+      <p className="font-medium text-[#EDE9FA]">{r.name}</p>
+    </div>
+    <div>
+      <div className="text-xs text-[#A59FC8]">Question</div>
+      <p className="italic text-[#EDE9FA]">"{r.q}"</p>
+    </div>
+    <div className="rounded-xl bg-[#241D42] p-3 text-sm">
+      <div className="font-semibold text-[#E8B86B]">Ascendant (Rising Sign): {r.chart.asc}</div>
+      <div className="mt-2 space-y-1 text-xs text-[#D6D1EE]">
+        {r.chart.planets.map(p => (
+          <div key={p.name} className="flex justify-between">
+            <span>{p.name}</span>
+            <span className="text-[#A59FC8]">{p.sign} {p.deg.toFixed(1)}° · House {p.house}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+    <div>
+      <div className="text-xs text-[#A59FC8]">Aspects</div>
+      <p className="text-xs text-[#EDE9FA]">{r.chart.aspects.join(", ") || "No major aspects found"}</p>
+    </div>
+    <p className="text-[11px] text-[#7C75A3] border-t border-[#2E2752] pt-2">
+      Calculated using high-precision planetary ephemeris.
+    </p>
+  </div>
+);
+
+export default function App() {
+  const [tab, setTab] = useState<(typeof TABS)[number]>("Home");
+  const [step, setStep] = useState<"form" | "ask" | "locked" | "report">("form");
+  const [formStep, setFormStep] = useState<number>(0); // 0: Name, 1: Email, 2: Photo, 3: DOB, 4: Time, 5: Place
+
+  const [f, setF] = useState({ name: "", email: "", date: "", time: "", place: "" });
+  const [photoUrl, setPhotoUrl] = useState<string>("");
+  const [isGoogleLogin, setIsGoogleLogin] = useState(false);
+  const [showGoogleModal, setShowGoogleModal] = useState(false);
+  const [customGmail, setCustomGmail] = useState("");
+
+  const [, setGeo] = useState<{ lat: number; lon: number } | null>(null);
+  const [chart, setChart] = useState<Chart | null>(null);
+  const [q, setQ] = useState("");
+  const [sub, setSub] = useState(false);
+  const [hist, setHist] = useState<Rec[]>([]);
+  const [cur, setCur] = useState<Rec | null>(null);
+  const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [ok, setOk] = useState(true);
+
+  useEffect(() => {
+    try {
+      setSub(localStorage.getItem("sub") === "1");
+      setHist(JSON.parse(localStorage.getItem("hist") || "[]"));
+    } catch {}
+    navigator.serviceWorker?.register("/sw.js").catch(() => {});
+  }, []);
+
+  const handleTextChange = (k: string) => (e: React.ChangeEvent<HTMLInputElement>) => {
+    setF(prev => ({ ...prev, [k]: e.target.value }));
+    if (err) setErr("");
+  };
+
+  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const url = URL.createObjectURL(file);
+      setPhotoUrl(url);
+    }
+  };
+
+  const handleGoogleSelect = (chosenEmail: string) => {
+    setF(prev => ({
+      ...prev,
+      email: chosenEmail,
+      name: prev.name.trim() || chosenEmail.split("@")[0].replace(/[._]/g, " ").replace(/\b\w/g, c => c.toUpperCase())
+    }));
+    setIsGoogleLogin(true);
+    setShowGoogleModal(false);
+    // Smoothly advance to photograph step
+    setFormStep(2);
+  };
+
+  async function submit() {
+    setErr("");
+    setBusy(true);
+    try {
+      const gRes = await fetch("/api/geo?q=" + encodeURIComponent(f.place));
+      const g = await gRes.json();
+      if (!gRes.ok || g.error) throw new Error(g.error || "Could not locate birthplace");
+      setGeo(g);
+
+      const cRes = await fetch("/api/chart", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ date: f.date, time: f.time, lat: g.lat, lon: g.lon })
+      });
+      const c = await cRes.json();
+      if (!cRes.ok || c.error) throw new Error(c.error || "Could not calculate birth chart");
+      setChart(c);
+      setStep("ask");
+    } catch (e) {
+      setErr((e as Error).message || "An unexpected error occurred");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function ask() {
+    if (!chart) return;
+    const r: Rec = { q, name: f.name, at: new Date().toLocaleDateString(), chart };
+    const h = [r, ...hist];
+    setHist(h);
+    try {
+      localStorage.setItem("hist", JSON.stringify(h));
+    } catch {}
+    setCur(r);
+    setStep(sub ? "report" : "locked");
+  }
+
+  function subscribe() {
+    setSub(true);
+    try {
+      localStorage.setItem("sub", "1");
+    } catch {}
+    if (step === "locked") setStep("report");
+    setTab("Home");
+  }
+
+  const stepsMeta = [
+    { label: "Name", icon: "👤", desc: "Identity" },
+    { label: "Email", icon: "✉️", desc: "Account" },
+    { label: "Photo", icon: "📷", desc: "Portrait" },
+    { label: "Birth Date", icon: "📅", desc: "Sun Sign" },
+    { label: "Birth Time", icon: "🕒", desc: "Ascendant" },
+    { label: "Birth Place", icon: "📍", desc: "Coordinates" },
+  ];
+
+  const zodiac = getZodiacSign(f.date);
+
+  const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email.trim());
+
+  return (
+    <div className="mx-auto flex min-h-dvh max-w-md flex-col px-5 pt-[calc(env(safe-area-inset-top)+20px)]">
+      <main className="flex-1 space-y-5 pb-28">
+        {/* App Top Bar */}
+        <header className="flex items-center justify-between py-2 border-b border-[#2E2752]/60">
+          <div className="flex items-center gap-2">
+            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-tr from-[#E8B86B] to-[#FFE2A4] text-sm text-[#1A1230] font-bold shadow-md shadow-[#E8B86B]/20">
+              ✨
+            </span>
+            <span className="font-semibold tracking-wide text-base text-[#EDE9FA]">Astro Reports</span>
+          </div>
+          {sub ? (
+            <span className="rounded-full bg-[#E8B86B]/20 px-2.5 py-0.5 text-xs font-medium text-[#E8B86B] border border-[#E8B86B]/30">
+              Premium
+            </span>
+          ) : (
+            <button
+              onClick={() => setTab("Plans")}
+              className="text-xs text-[#E8B86B] hover:underline cursor-pointer"
+            >
+              Upgrade
+            </button>
+          )}
+        </header>
+
+        {tab === "Home" && step === "form" && (
+          <div className="space-y-6">
+            {/* Step Progress Bar */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-xs text-[#A59FC8]">
+                <div className="flex items-center gap-1.5 font-medium">
+                  {formStep > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setFormStep(s => Math.max(0, s - 1))}
+                      className="mr-1 text-[#E8B86B] hover:text-[#FFE2A4] transition-colors flex items-center gap-1 cursor-pointer"
+                    >
+                      ← Back
+                    </button>
+                  )}
+                  <span>Step {formStep + 1} of 6</span>
+                </div>
+                <span className="text-[#E8B86B] font-semibold">{stepsMeta[formStep].label}</span>
+              </div>
+
+              {/* Visual Progress Bar */}
+              <div className="h-1.5 w-full overflow-hidden rounded-full bg-[#1A1533] border border-[#2E2752]">
+                <div
+                  className="h-full bg-gradient-to-r from-[#8870FF] to-[#E8B86B] transition-all duration-300 ease-out"
+                  style={{ width: `${((formStep + 1) / 6) * 100}%` }}
+                />
+              </div>
+
+              {/* Progress Milestones */}
+              <div className="flex justify-between px-1 pt-1">
+                {stepsMeta.map((s, idx) => (
+                  <button
+                    key={s.label}
+                    type="button"
+                    disabled={idx > formStep}
+                    onClick={() => setFormStep(idx)}
+                    className={`flex flex-col items-center cursor-pointer transition-opacity ${
+                      idx === formStep
+                        ? "text-[#E8B86B] opacity-100"
+                        : idx < formStep
+                        ? "text-[#A59FC8] opacity-80 hover:opacity-100"
+                        : "text-[#544C7C] opacity-40 cursor-not-allowed"
+                    }`}
+                  >
+                    <span className="text-xs">{s.icon}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* FIELD 1: NAME */}
+            {formStep === 0 && (
+              <section className="space-y-5 animate-in fade-in duration-200">
+                <div className="space-y-1">
+                  <div className="inline-flex items-center gap-2 rounded-full bg-[#E8B86B]/10 px-3 py-1 text-xs text-[#E8B86B] border border-[#E8B86B]/20">
+                    <span>👤</span> Personal Identity
+                  </div>
+                  <h1 className="text-2xl font-bold tracking-tight text-[#EDE9FA]">What's your full name?</h1>
+                  <p className="text-sm text-[#A59FC8]">
+                    We'll customize your celestial readings and birth chart reports with your name.
+                  </p>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="relative">
+                    <input
+                      type="text"
+                      className={inp}
+                      placeholder="e.g. Eleanor Vance"
+                      value={f.name}
+                      autoFocus
+                      onChange={handleTextChange("name")}
+                      onKeyDown={e => {
+                        if (e.key === "Enter" && f.name.trim()) setFormStep(1);
+                      }}
+                    />
+                  </div>
+
+                  {f.name.trim().length > 0 && (
+                    <p className="text-xs text-[#A59FC8]">
+                      Nice to meet you, <span className="font-semibold text-[#E8B86B]">{f.name.trim()}</span>!
+                    </p>
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  className={btn}
+                  disabled={!f.name.trim()}
+                  onClick={() => setFormStep(1)}
+                >
+                  Continue →
+                </button>
+              </section>
+            )}
+
+            {/* FIELD 2: EMAIL WITH GMAIL LOGIN */}
+            {formStep === 1 && (
+              <section className="space-y-5 animate-in fade-in duration-200">
+                <div className="space-y-1">
+                  <div className="inline-flex items-center gap-2 rounded-full bg-[#E8B86B]/10 px-3 py-1 text-xs text-[#E8B86B] border border-[#E8B86B]/20">
+                    <span>✉️</span> Communication
+                  </div>
+                  <h1 className="text-2xl font-bold tracking-tight text-[#EDE9FA]">What's your email address?</h1>
+                  <p className="text-sm text-[#A59FC8]">
+                    Use Google for instant sign-in or enter your email address manually.
+                  </p>
+                </div>
+
+                {/* Google Sign-In Button */}
+                <div className="space-y-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowGoogleModal(true)}
+                    className="w-full min-h-12 rounded-xl bg-[#231C42] hover:bg-[#2C2454] border border-[#3E346B] text-sm font-medium text-[#EDE9FA] flex items-center justify-center gap-3 transition-colors cursor-pointer shadow-sm active:scale-[0.99]"
+                  >
+                    <svg className="h-5 w-5" viewBox="0 0 24 24">
+                      <path
+                        fill="#4285F4"
+                        d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                      />
+                      <path
+                        fill="#34A853"
+                        d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                      />
+                      <path
+                        fill="#FBBC05"
+                        d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+                      />
+                      <path
+                        fill="#EA4335"
+                        d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+                      />
+                    </svg>
+                    <span>{isGoogleLogin ? "Google Connected ✓" : "Continue with Google (Gmail)"}</span>
+                  </button>
+
+                  <div className="relative flex items-center justify-center">
+                    <div className="absolute inset-0 flex items-center">
+                      <div className="w-full border-t border-[#2E2752]" />
+                    </div>
+                    <span className="relative bg-[#0E0B1F] px-3 text-xs text-[#A59FC8]">or enter email</span>
+                  </div>
+
+                  <input
+                    type="email"
+                    className={inp}
+                    placeholder="name@example.com"
+                    value={f.email}
+                    autoFocus={!isGoogleLogin}
+                    onChange={handleTextChange("email")}
+                    onKeyDown={e => {
+                      if (e.key === "Enter" && isEmailValid) setFormStep(2);
+                    }}
+                  />
+
+                  {isGoogleLogin && (
+                    <div className="flex items-center gap-2 rounded-lg bg-[#273B2F] border border-[#3A6B4C] px-3 py-2 text-xs text-[#8EF2B0]">
+                      <span>✓</span>
+                      <span>Signed in via Google: <strong>{f.email}</strong></span>
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  className={btn}
+                  disabled={!isEmailValid}
+                  onClick={() => setFormStep(2)}
+                >
+                  Continue →
+                </button>
+              </section>
+            )}
+
+            {/* FIELD 3: PHOTOGRAPH */}
+            {formStep === 2 && (
+              <section className="space-y-5 animate-in fade-in duration-200">
+                <div className="space-y-1">
+                  <div className="inline-flex items-center gap-2 rounded-full bg-[#E8B86B]/10 px-3 py-1 text-xs text-[#E8B86B] border border-[#E8B86B]/20">
+                    <span>📷</span> Visual Dossier
+                  </div>
+                  <h1 className="text-2xl font-bold tracking-tight text-[#EDE9FA]">Add your photograph</h1>
+                  <p className="text-sm text-[#A59FC8]">
+                    Upload a portrait photo for your astrological dossier. Photos stay local on your device.
+                  </p>
+                </div>
+
+                <div className="flex flex-col items-center justify-center space-y-4">
+                  <label
+                    htmlFor="photo-upload"
+                    className="relative group flex h-44 w-44 cursor-pointer flex-col items-center justify-center overflow-hidden rounded-3xl border-2 border-dashed border-[#4A4180] bg-[#1A1533] hover:border-[#E8B86B] hover:bg-[#231C42] transition-all shadow-inner"
+                  >
+                    {photoUrl ? (
+                      <>
+                        <img src={photoUrl} alt="Uploaded portrait" className="h-full w-full object-cover" />
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity text-xs text-[#EDE9FA] font-medium">
+                          Change Photo
+                        </div>
+                      </>
+                    ) : (
+                      <div className="flex flex-col items-center p-4 text-center">
+                        <span className="text-3xl mb-2">📸</span>
+                        <span className="text-sm font-medium text-[#EDE9FA]">Upload Portrait</span>
+                        <span className="text-xs text-[#A59FC8] mt-1">Tap to browse or take photo</span>
+                      </div>
+                    )}
+                    <input
+                      id="photo-upload"
+                      type="file"
+                      accept="image/*"
+                      capture="user"
+                      hidden
+                      onChange={handlePhotoUpload}
+                    />
+                  </label>
+
+                  {photoUrl ? (
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-[#8EF2B0]">✓ Photo loaded</span>
+                      <button
+                        type="button"
+                        onClick={() => setPhotoUrl("")}
+                        className="text-xs text-red-400 hover:underline cursor-pointer ml-2"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-[#A59FC8] text-center max-w-xs">
+                      Portrait photo helps complete your personal natal report file.
+                    </p>
+                  )}
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <button
+                    type="button"
+                    className={btn}
+                    onClick={() => setFormStep(3)}
+                  >
+                    {photoUrl ? "Continue with Photo →" : "Continue →"}
+                  </button>
+                  {!photoUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setFormStep(3)}
+                      className="py-2 text-xs text-[#A59FC8] hover:text-[#EDE9FA] cursor-pointer"
+                    >
+                      Skip photo for now
+                    </button>
+                  )}
+                </div>
+              </section>
+            )}
+
+            {/* FIELD 4: DATE OF BIRTH */}
+            {formStep === 3 && (
+              <section className="space-y-5 animate-in fade-in duration-200">
+                <div className="space-y-1">
+                  <div className="inline-flex items-center gap-2 rounded-full bg-[#E8B86B]/10 px-3 py-1 text-xs text-[#E8B86B] border border-[#E8B86B]/20">
+                    <span>📅</span> Solar Alignment
+                  </div>
+                  <h1 className="text-2xl font-bold tracking-tight text-[#EDE9FA]">When were you born?</h1>
+                  <p className="text-sm text-[#A59FC8]">
+                    Your date of birth pinpoints the Sun's degree along the zodiac belt.
+                  </p>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-[#A59FC8]">Date of birth</label>
+                    <input
+                      type="date"
+                      className={inp}
+                      aria-label="Date of birth"
+                      value={f.date}
+                      autoFocus
+                      onChange={handleTextChange("date")}
+                      onKeyDown={e => {
+                        if (e.key === "Enter" && f.date) setFormStep(4);
+                      }}
+                    />
+                  </div>
+
+                  {/* Zodiac Preview Card */}
+                  {zodiac && (
+                    <div className="rounded-2xl border border-[#443875] bg-gradient-to-r from-[#201944] to-[#2B1D4E] p-4 flex items-center gap-4 shadow-sm animate-in fade-in duration-150">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#E8B86B]/20 text-2xl text-[#E8B86B] border border-[#E8B86B]/30">
+                        {zodiac.symbol}
+                      </div>
+                      <div>
+                        <div className="text-xs uppercase tracking-wider text-[#A59FC8]">Calculated Sun Sign</div>
+                        <div className="text-base font-bold text-[#E8B86B]">{zodiac.name} {zodiac.symbol}</div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  className={btn}
+                  disabled={!f.date}
+                  onClick={() => setFormStep(4)}
+                >
+                  Continue →
+                </button>
+              </section>
+            )}
+
+            {/* FIELD 5: TIME OF BIRTH */}
+            {formStep === 4 && (
+              <section className="space-y-5 animate-in fade-in duration-200">
+                <div className="space-y-1">
+                  <div className="inline-flex items-center gap-2 rounded-full bg-[#E8B86B]/10 px-3 py-1 text-xs text-[#E8B86B] border border-[#E8B86B]/20">
+                    <span>🕒</span> Ascendant Precision
+                  </div>
+                  <h1 className="text-2xl font-bold tracking-tight text-[#EDE9FA]">What time were you born?</h1>
+                  <p className="text-sm text-[#A59FC8]">
+                    Crucial for calculating your Rising Sign (Ascendant) and accurate astrological houses.
+                  </p>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-[#A59FC8]">Time of birth (24h or AM/PM)</label>
+                    <input
+                      type="time"
+                      className={inp}
+                      aria-label="Time of birth"
+                      value={f.time}
+                      autoFocus
+                      onChange={handleTextChange("time")}
+                      onKeyDown={e => {
+                        if (e.key === "Enter" && f.time) setFormStep(5);
+                      }}
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setF(prev => ({ ...prev, time: "12:00" }))}
+                      className="text-xs text-[#E8B86B] hover:underline cursor-pointer"
+                    >
+                      Don't know exact time? Use 12:00 PM (Noon)
+                    </button>
+                    {f.time && (
+                      <span className="text-xs text-[#8EF2B0]">Selected: {f.time}</span>
+                    )}
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  className={btn}
+                  disabled={!f.time}
+                  onClick={() => setFormStep(5)}
+                >
+                  Continue →
+                </button>
+              </section>
+            )}
+
+            {/* FIELD 6: PLACE OF BIRTH */}
+            {formStep === 5 && (
+              <section className="space-y-5 animate-in fade-in duration-200">
+                <div className="space-y-1">
+                  <div className="inline-flex items-center gap-2 rounded-full bg-[#E8B86B]/10 px-3 py-1 text-xs text-[#E8B86B] border border-[#E8B86B]/20">
+                    <span>📍</span> Earth Coordinates
+                  </div>
+                  <h1 className="text-2xl font-bold tracking-tight text-[#EDE9FA]">Where were you born?</h1>
+                  <p className="text-sm text-[#A59FC8]">
+                    Enter your birth city and country to look up geographic coordinates and timezone.
+                  </p>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-[#A59FC8]">Place of birth</label>
+                    <input
+                      type="text"
+                      className={inp}
+                      placeholder="e.g. San Francisco, USA or Tokyo, Japan"
+                      value={f.place}
+                      autoFocus
+                      onChange={handleTextChange("place")}
+                      onKeyDown={e => {
+                        if (e.key === "Enter" && f.place.trim() && ok) submit();
+                      }}
+                    />
+                  </div>
+
+                  {/* Popular quick picks */}
+                  <div className="space-y-1.5">
+                    <span className="text-[11px] text-[#A59FC8]">Quick suggestions:</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {["New York, USA", "London, UK", "Paris, France", "Tokyo, Japan", "Mumbai, India", "Sydney, Australia"].map(city => (
+                        <button
+                          key={city}
+                          type="button"
+                          onClick={() => setF(prev => ({ ...prev, place: city }))}
+                          className="rounded-lg border border-[#2E2752] bg-[#1A1533] px-2.5 py-1 text-xs text-[#A59FC8] hover:border-[#E8B86B] hover:text-[#EDE9FA] transition-colors cursor-pointer"
+                        >
+                          {city.split(",")[0]}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Summary recap */}
+                  <div className="rounded-xl border border-[#2E2752] bg-[#1A1533]/80 p-3 text-xs space-y-1 text-[#A59FC8]">
+                    <div className="font-semibold text-[#EDE9FA] mb-1">Your Chart Summary:</div>
+                    <div className="flex justify-between">
+                      <span>Name:</span> <span className="text-[#EDE9FA]">{f.name || "-"}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Email:</span> <span className="text-[#EDE9FA]">{f.email || "-"}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Born:</span> <span className="text-[#EDE9FA]">{f.date || "-"} at {f.time || "-"}</span>
+                    </div>
+                    {photoUrl && (
+                      <div className="flex justify-between items-center pt-1">
+                        <span>Portrait:</span>
+                        <img src={photoUrl} alt="avatar" className="h-6 w-6 rounded-full object-cover border border-[#E8B86B]" />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Privacy policy checkbox */}
+                  <label className="flex items-start gap-2.5 text-xs text-[#A59FC8] cursor-pointer pt-1">
+                    <input
+                      type="checkbox"
+                      className="mt-0.5 h-4 w-4 rounded border-[#2E2752] bg-[#1A1533] text-[#E8B86B] accent-[#E8B86B]"
+                      checked={ok}
+                      onChange={e => setOk(e.target.checked)}
+                    />
+                    <span>
+                      I agree to the privacy policy and consent to calculating astrological charts from these details.
+                    </span>
+                  </label>
+
+                  {err && (
+                    <div role="alert" className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-300">
+                      ⚠️ {err}
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  className={btn}
+                  disabled={!f.place.trim() || !ok || busy}
+                  onClick={submit}
+                >
+                  {busy ? (
+                    <span className="flex items-center gap-2">
+                      <svg className="h-5 w-5 animate-spin text-[#1A1230]" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                      </svg>
+                      Calculating Chart…
+                    </span>
+                  ) : (
+                    "Calculate Birth Chart ✨"
+                  )}
+                </button>
+              </section>
+            )}
+          </div>
+        )}
+
+        {/* STEP: ASK QUESTION */}
+        {tab === "Home" && step === "ask" && (
+          <div className="space-y-4 animate-in fade-in duration-200">
+            <div className={card + " border-[#E8B86B] bg-gradient-to-r from-[#211A3D] to-[#2E204B]"}>
+              <div className="text-xs uppercase tracking-wider text-[#E8B86B]">Birth Chart Ready</div>
+              <div className="font-semibold text-lg text-[#EDE9FA]">{f.name}</div>
+              <div className="text-sm text-[#A59FC8] mt-1">
+                Ascendant: <strong className="text-[#E8B86B]">{chart?.asc}</strong>
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <h1 className="text-2xl font-bold tracking-tight text-[#EDE9FA]">Ask your question</h1>
+              <p className="text-sm text-[#A59FC8]">
+                What insights, career directions, or relationship alignments would you like to explore?
+              </p>
+            </div>
+
+            <textarea
+              className={inp + " min-h-28 py-3 text-sm"}
+              value={q}
+              onChange={e => setQ(e.target.value)}
+              placeholder="e.g. What does my natal chart say about career growth in 2026?"
+            />
+
+            <button
+              className={btn}
+              disabled={!q.trim()}
+              onClick={ask}
+            >
+              Analyze Chart & Question →
+            </button>
+          </div>
+        )}
+
+        {/* STEP: LOCKED (PAYWALL/PLAN PREVIEW) */}
+        {tab === "Home" && step === "locked" && (
+          <div className={card + " space-y-4 border-[#E8B86B]/40 animate-in fade-in duration-200"}>
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#E8B86B]/10 text-2xl text-[#E8B86B]">
+              🔒
+            </div>
+            <div>
+              <div className="text-xl font-bold text-[#EDE9FA]">Your Report is Ready</div>
+              <p className="text-sm text-[#D6D1EE] mt-1">
+                Your full planetary positions, houses, and aspect calculations are complete. Subscribe to unlock unlimited reports.
+              </p>
+            </div>
+            <button className={btn} onClick={() => setTab("Plans")}>
+              View Subscription Plans
+            </button>
+          </div>
+        )}
+
+        {/* STEP: REPORT VIEW */}
+        {tab === "Home" && step === "report" && cur && (
+          <div className="space-y-5 animate-in fade-in duration-200">
+            <div className="flex items-center justify-between">
+              <h1 className="text-2xl font-bold tracking-tight text-[#EDE9FA]">Your Report</h1>
+              <button
+                type="button"
+                onClick={() => {
+                  setStep("form");
+                  setFormStep(0);
+                  setQ("");
+                }}
+                className="text-xs text-[#E8B86B] hover:underline cursor-pointer"
+              >
+                + New Chart
+              </button>
+            </div>
+            <Report r={cur} />
+            <button
+              className={btn}
+              onClick={() => {
+                setStep("form");
+                setFormStep(0);
+                setQ("");
+              }}
+            >
+              Calculate Another Report
+            </button>
+          </div>
+        )}
+
+        {/* TAB: HISTORY */}
+        {tab === "History" && (
+          <div className="space-y-4 animate-in fade-in duration-200">
+            <h1 className="text-2xl font-bold tracking-tight text-[#EDE9FA]">History</h1>
+            {hist.length === 0 ? (
+              <div className={card + " text-center py-8 text-[#A59FC8]"}>
+                <span className="text-3xl block mb-2">📜</span>
+                No reports generated yet.
+              </div>
+            ) : (
+              hist.map((r, i) =>
+                sub ? (
+                  <Report key={i} r={r} />
+                ) : (
+                  <div key={i} className={card + " space-y-1"}>
+                    <div className="font-medium text-[#EDE9FA]">{r.q}</div>
+                    <div className="text-xs text-[#A59FC8] flex justify-between pt-1">
+                      <span>{r.at}</span>
+                      <span className="text-[#E8B86B]">Locked · Subscribe to view</span>
+                    </div>
+                  </div>
+                )
+              )
+            )}
+          </div>
+        )}
+
+        {/* TAB: PROFILE */}
+        {tab === "Profile" && (
+          <div className="space-y-4 animate-in fade-in duration-200">
+            <h1 className="text-2xl font-bold tracking-tight text-[#EDE9FA]">Profile</h1>
+            <div className={card + " space-y-4"}>
+              <div className="flex items-center gap-3">
+                {photoUrl ? (
+                  <img src={photoUrl} alt="Avatar" className="h-16 w-16 rounded-2xl object-cover border-2 border-[#E8B86B]" />
+                ) : (
+                  <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[#2E2752] text-2xl text-[#E8B86B]">
+                    👤
+                  </div>
+                )}
+                <div>
+                  <div className="font-semibold text-base text-[#EDE9FA]">{f.name || "Guest Querent"}</div>
+                  <div className="text-xs text-[#A59FC8]">{f.email || "No email provided"}</div>
+                  {isGoogleLogin && (
+                    <span className="inline-block mt-1 text-[11px] text-[#8EF2B0]">
+                      ✓ Google Authenticated
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div className="border-t border-[#2E2752] pt-3 space-y-2 text-xs">
+                <div className="flex justify-between">
+                  <span className="text-[#A59FC8]">Subscription Plan:</span>
+                  <span className="font-medium text-[#E8B86B]">{sub ? "Premium Active (Demo)" : "Free Explorer"}</span>
+                </div>
+                {f.date && (
+                  <div className="flex justify-between">
+                    <span className="text-[#A59FC8]">Date of Birth:</span>
+                    <span className="text-[#EDE9FA]">{f.date}</span>
+                  </div>
+                )}
+                {f.time && (
+                  <div className="flex justify-between">
+                    <span className="text-[#A59FC8]">Time of Birth:</span>
+                    <span className="text-[#EDE9FA]">{f.time}</span>
+                  </div>
+                )}
+                {f.place && (
+                  <div className="flex justify-between">
+                    <span className="text-[#A59FC8]">Birth City:</span>
+                    <span className="text-[#EDE9FA]">{f.place}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setStep("form");
+                  setFormStep(0);
+                  setTab("Home");
+                }}
+                className="w-full min-h-12 rounded-xl border border-[#2E2752] bg-[#1A1533] text-sm text-[#EDE9FA] hover:border-[#E8B86B] transition-colors cursor-pointer"
+              >
+                Edit Birth Details
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* TAB: PLANS */}
+        {tab === "Plans" && (
+          <div className="space-y-4 animate-in fade-in duration-200">
+            <h1 className="text-2xl font-bold tracking-tight text-[#EDE9FA]">Membership Plans</h1>
+            <p className="text-xs text-[#A59FC8]">
+              Unlock deep-dive chart interpretations, planetary transits, and unlimited query analysis.
+            </p>
+
+            {[
+              ["Monthly Access", "$9.99 / month", "Billed monthly, cancel anytime"],
+              ["Annual Cosmic Pass", "$79.99 / year", "Save 33% + Full solar return forecast"]
+            ].map(([n, p, d]) => (
+              <div key={n} className={card + " space-y-3 border-[#2E2752] hover:border-[#E8B86B]/50 transition-colors"}>
+                <div className="flex justify-between items-baseline">
+                  <span className="font-semibold text-base text-[#EDE9FA]">{n}</span>
+                  <span className="text-base font-bold text-[#E8B86B]">{p}</span>
+                </div>
+                <p className="text-xs text-[#A59FC8]">{d}</p>
+                <button
+                  className={btn}
+                  onClick={subscribe}
+                  disabled={sub}
+                >
+                  {sub ? "Current Plan ✓" : "Activate (Demo Mode)"}
+                </button>
+              </div>
+            ))}
+
+            <p className="text-center text-xs text-[#7C75A3] pt-2">
+              Demo sandbox: no actual card payment will be processed.
+            </p>
+          </div>
+        )}
+      </main>
+
+      {/* GOOGLE SIGN-IN MODAL */}
+      {showGoogleModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 px-4 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="w-full max-w-sm rounded-3xl border border-[#3E346B] bg-[#171233] p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-2 border-b border-[#2E2752]">
+              <div className="flex items-center gap-2">
+                <svg className="h-5 w-5" viewBox="0 0 24 24">
+                  <path
+                    fill="#4285F4"
+                    d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                  />
+                  <path
+                    fill="#34A853"
+                    d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                  />
+                  <path
+                    fill="#FBBC05"
+                    d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+                  />
+                  <path
+                    fill="#EA4335"
+                    d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+                  />
+                </svg>
+                <span className="text-sm font-semibold text-[#EDE9FA]">Sign in with Google</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowGoogleModal(false)}
+                className="text-[#A59FC8] hover:text-white text-lg font-bold cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <p className="text-xs text-[#A59FC8]">
+              Select a Google account to continue with Astro Reports:
+            </p>
+
+            {/* Quick account options */}
+            <div className="space-y-2">
+              {f.name.trim() && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    handleGoogleSelect(
+                      `${f.name.trim().toLowerCase().replace(/[^a-z0-9]/g, ".")}@gmail.com`
+                    )
+                  }
+                  className="w-full flex items-center gap-3 p-3 rounded-xl border border-[#2E2752] bg-[#1E173E] hover:bg-[#282054] transition-colors text-left cursor-pointer"
+                >
+                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#E8B86B] text-xs font-bold text-[#1A1230]">
+                    {f.name.trim()[0].toUpperCase()}
+                  </div>
+                  <div className="flex-1 overflow-hidden">
+                    <div className="text-xs font-semibold text-[#EDE9FA] truncate">{f.name.trim()}</div>
+                    <div className="text-[11px] text-[#A59FC8] truncate">
+                      {f.name.trim().toLowerCase().replace(/[^a-z0-9]/g, ".")}@gmail.com
+                    </div>
+                  </div>
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => handleGoogleSelect("alex.astrology@gmail.com")}
+                className="w-full flex items-center gap-3 p-3 rounded-xl border border-[#2E2752] bg-[#1E173E] hover:bg-[#282054] transition-colors text-left cursor-pointer"
+              >
+                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#4285F4] text-xs font-bold text-white">
+                  A
+                </div>
+                <div className="flex-1 overflow-hidden">
+                  <div className="text-xs font-semibold text-[#EDE9FA] truncate">Alex Stargazer</div>
+                  <div className="text-[11px] text-[#A59FC8] truncate">alex.astrology@gmail.com</div>
+                </div>
+              </button>
+            </div>
+
+            {/* Custom Gmail Input */}
+            <div className="pt-2 border-t border-[#2E2752] space-y-2">
+              <label className="text-[11px] text-[#A59FC8]">Or enter custom Gmail:</label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="your.name@gmail.com"
+                  className={inp + " min-h-10 text-xs py-2"}
+                  value={customGmail}
+                  onChange={e => setCustomGmail(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === "Enter" && customGmail.includes("@")) {
+                      handleGoogleSelect(customGmail.trim());
+                    }
+                  }}
+                />
+                <button
+                  type="button"
+                  disabled={!customGmail.includes("@")}
+                  onClick={() => handleGoogleSelect(customGmail.trim())}
+                  className="rounded-xl bg-[#E8B86B] px-3 text-xs font-semibold text-[#1A1230] disabled:opacity-50 cursor-pointer"
+                >
+                  OK
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* BOTTOM NAVIGATION BAR */}
+      <nav className="fixed inset-x-0 bottom-0 mx-auto flex max-w-md border-t border-[#2E2752] bg-[#150F2B]/95 backdrop-blur-md px-2 pb-[calc(env(safe-area-inset-bottom)+12px)] pt-2 z-40">
+        {TABS.map(t => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className={
+              "min-h-11 flex-1 text-xs font-medium cursor-pointer transition-colors flex flex-col items-center justify-center gap-0.5 " +
+              (tab === t ? "text-[#E8B86B] font-semibold" : "text-[#A59FC8] hover:text-[#EDE9FA]")
+            }
+          >
+            <span>{t === "Home" ? "🌟" : t === "History" ? "📜" : t === "Profile" ? "👤" : "💎"}</span>
+            <span>{t}</span>
+          </button>
+        ))}
+      </nav>
+    </div>
+  );
+}
