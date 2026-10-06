@@ -34,6 +34,12 @@ export interface HoroscopeResult {
   luckyAspect: string;
 }
 
+// Backend URL (from next.config.mjs env or NEXT_PUBLIC_API_URL or localhost default)
+export const BACKEND_URL =
+  process.env.NEXT_PUBLIC_BACKEND_URL ||
+  process.env.NEXT_PUBLIC_API_URL ||
+  "http://localhost:5000";
+
 // When NEXT_PUBLIC_API_URL is configured (e.g. in deployed / decoupled environments),
 // requests go directly to that host. Otherwise, relative /api paths are used and proxied by Next.js rewrites.
 const BASE_URL = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/$/, "");

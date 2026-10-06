@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { fetchGeoLocation, fetchBirthChart, checkServerHealth } from "../lib/api";
+import { fetchGeoLocation, fetchBirthChart, checkServerHealth, BACKEND_URL } from "../lib/api";
 
 type P = { name: string; sign: string; deg: number; house: number };
 type Chart = { asc: string; planets: P[]; aspects: string[] };
@@ -204,7 +204,7 @@ export default function App() {
                     ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
                     : "bg-amber-500/10 text-amber-300 border-amber-500/30"
                 }`}
-                title={serverOnline ? "Backend Express Server Connected" : "Connecting to Express Server..."}
+                title={`Backend: ${BACKEND_URL} (${serverOnline ? "Connected" : "Offline"})`}
               >
                 <span className={`h-1.5 w-1.5 rounded-full ${serverOnline ? "bg-emerald-400 animate-pulse" : "bg-amber-400"}`} />
                 {serverOnline ? "API Live" : "API Offline"}
@@ -224,6 +224,51 @@ export default function App() {
             </button>
           )}
         </header>
+
+        {/* Backend Server URL Status Banner (Homepage) */}
+        {tab === "Home" && (
+          <div className="flex items-center justify-between rounded-xl border border-[#2E2752] bg-[#16122E]/80 px-3.5 py-2 text-xs shadow-sm">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-[#241D42] text-xs">
+                ⚡
+              </span>
+              <div className="flex flex-col min-w-0">
+                <span className="text-[10px] uppercase tracking-wider text-[#A59FC8] font-medium">Backend URL</span>
+                <a
+                  href={BACKEND_URL}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="font-mono text-[11px] text-[#E8B86B] hover:text-[#FFE2A4] hover:underline truncate transition-colors"
+                  title={`Open backend server: ${BACKEND_URL}`}
+                >
+                  {BACKEND_URL}
+                </a>
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5 shrink-0 pl-2">
+              <span
+                className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-medium border transition-colors ${
+                  serverOnline === true
+                    ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
+                    : serverOnline === false
+                    ? "bg-rose-500/10 text-rose-400 border-rose-500/30"
+                    : "bg-amber-500/10 text-amber-300 border-amber-500/30"
+                }`}
+              >
+                <span
+                  className={`h-1.5 w-1.5 rounded-full ${
+                    serverOnline === true
+                      ? "bg-emerald-400 animate-pulse"
+                      : serverOnline === false
+                      ? "bg-rose-400"
+                      : "bg-amber-400"
+                  }`}
+                />
+                {serverOnline === true ? "Online" : serverOnline === false ? "Offline" : "Connecting"}
+              </span>
+            </div>
+          </div>
+        )}
 
         {tab === "Home" && step === "form" && (
           <div className="space-y-6">
@@ -856,6 +901,28 @@ export default function App() {
                     <span className="text-[#EDE9FA]">{f.place}</span>
                   </div>
                 )}
+              </div>
+            </div>
+
+            {/* Server Connection Details */}
+            <div className={card + " space-y-2 text-xs"}>
+              <div className="font-semibold text-[#EDE9FA]">Server Connection</div>
+              <div className="flex justify-between items-center">
+                <span className="text-[#A59FC8]">Backend URL:</span>
+                <a
+                  href={BACKEND_URL}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="font-mono text-[11px] text-[#E8B86B] hover:underline truncate max-w-[200px]"
+                >
+                  {BACKEND_URL}
+                </a>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-[#A59FC8]">API Status:</span>
+                <span className={serverOnline ? "text-emerald-400 font-medium" : "text-amber-400 font-medium"}>
+                  {serverOnline ? "Online (Express)" : "Offline"}
+                </span>
               </div>
             </div>
 
