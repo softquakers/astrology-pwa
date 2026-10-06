@@ -40,9 +40,13 @@ export const BACKEND_URL =
   process.env.NEXT_PUBLIC_API_URL ||
   "http://localhost:5000";
 
-// When NEXT_PUBLIC_API_URL is configured (e.g. in deployed / decoupled environments),
-// requests go directly to that host. Otherwise, relative /api paths are used and proxied by Next.js rewrites.
-const BASE_URL = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/$/, "");
+// Direct API calls to configured backend (Heroku in production, localhost in development).
+// Falls back to relative paths only if no host is configured.
+const BASE_URL = (
+  process.env.NEXT_PUBLIC_API_URL ||
+  process.env.NEXT_PUBLIC_BACKEND_URL ||
+  BACKEND_URL
+).replace(/\/$/, "");
 
 export async function fetchGeoLocation(place: string): Promise<GeoResult> {
   const endpoint = `${BASE_URL}/api/geo?q=${encodeURIComponent(place.trim())}`;
