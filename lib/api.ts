@@ -58,11 +58,49 @@ export async function fetchGeoLocation(place: string): Promise<GeoResult> {
   return data;
 }
 
+export interface SignUpParams {
+  email: string;
+  name?: string;
+  photoUrl?: string;
+}
+
+export interface SignUpResult {
+  success: boolean;
+  message?: string;
+  offline?: boolean;
+  user?: {
+    id?: string;
+    email: string;
+    name?: string;
+    photoUrl?: string;
+    subscriptionStatus?: string;
+    subscriptionPlan?: string;
+    isPremium?: boolean;
+  };
+}
+
+export async function signUpUser(params: SignUpParams): Promise<SignUpResult> {
+  const endpoint = `${BASE_URL}/api/users/signup`;
+  const res = await fetch(endpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+  });
+  const data = await res.json();
+  if (!res.ok || data.error) {
+    throw new Error(data.error || "Could not sign up user");
+  }
+  return data;
+}
+
 export async function fetchBirthChart(params: {
   date: string;
   time: string;
   lat: number;
   lon: number;
+  name?: string;
+  email?: string;
+  place?: string;
 }): Promise<ChartResult> {
   const endpoint = `${BASE_URL}/api/chart`;
   const res = await fetch(endpoint, {

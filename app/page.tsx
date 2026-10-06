@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { fetchGeoLocation, fetchBirthChart, checkServerHealth, BACKEND_URL } from "../lib/api";
+import { fetchGeoLocation, fetchBirthChart, checkServerHealth, signUpUser, BACKEND_URL } from "../lib/api";
 
 type P = { name: string; sign: string; deg: number; house: number };
 type Chart = { asc: string; planets: P[]; aspects: string[] };
@@ -135,14 +135,32 @@ export default function App() {
     setErr("");
     setBusy(true);
     try {
+      // 1. Call Sign Up API with user's details (subscription details added later)
+      if (f.email.trim()) {
+        try {
+          await signUpUser({
+            email: f.email.trim(),
+            name: f.name.trim(),
+            photoUrl: photoUrl || undefined,
+          });
+        } catch (signUpErr) {
+          console.warn("Sign up warning:", signUpErr);
+        }
+      }
+
+      // 2. Resolve geographic coordinates
       const g = await fetchGeoLocation(f.place);
       setGeo(g);
 
+      // 3. Calculate and persist chart linked to user profile
       const c = await fetchBirthChart({
         date: f.date,
         time: f.time,
         lat: g.lat,
-        lon: g.lon
+        lon: g.lon,
+        name: f.name.trim(),
+        email: f.email.trim(),
+        place: f.place.trim(),
       });
       setChart(c);
       setStep("ask");
