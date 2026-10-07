@@ -124,6 +124,14 @@ export default function App() {
   const [googleLoading, setGoogleLoading] = useState(false);
   const tokenClientRef = useRef<any>(null);
 
+  // Physical Camera states
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const cameraStreamRef = useRef<MediaStream | null>(null);
+  const [isCameraActive, setIsCameraActive] = useState(false);
+  const [isCameraStarting, setIsCameraStarting] = useState(false);
+  const [cameraError, setCameraError] = useState("");
+  const [facingMode, setFacingMode] = useState<"user" | "environment">("user");
+
   const [, setGeo] = useState<{ lat: number; lon: number } | null>(null);
   const [chart, setChart] = useState<Chart | null>(null);
   const [q, setQ] = useState("");
@@ -329,11 +337,137 @@ export default function App() {
     if (err) setErr("");
   };
 
+  // Camera methods
+  const startCamera = async (mode: "user" | "environment" = facingMode) => {
+    setCameraError("");
+    setIsCameraStarting(true);
+    try {
+      if (cameraStreamRef.current) {
+        cameraStreamRef.current.getTracks().forEach(t => {
+          try { t.stop(); } catch {}
+        });
+        cameraStreamRef.current = null;
+      }
+
+      if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
+        throw new Error("Physical camera is not supported in this browser or environment.");
+      }
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: mode,
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
+        audio: false,
+      });
+
+      cameraStreamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        try {
+          await videoRef.current.play();
+        } catch (playErr) {
+          console.warn("Camera video play notice:", playErr);
+        }
+      }
+      setIsCameraActive(true);
+    } catch (err: any) {
+      console.warn("Camera start notice:", err);
+      setIsCameraActive(false);
+      setCameraError(
+        err.name === "NotAllowedError" || err.name === "PermissionDeniedError"
+          ? "Camera permission was denied. Please allow camera access in your browser to take a photo."
+          : err.name === "NotFoundError" || err.name === "DevicesNotFoundError"
+          ? "No physical camera device was detected on your computer or device."
+          : err.message || "Could not start camera."
+      );
+    } finally {
+      setIsCameraStarting(false);
+    }
+  };
+
+  const stopCamera = () => {
+    if (cameraStreamRef.current) {
+      cameraStreamRef.current.getTracks().forEach(t => {
+        try { t.stop(); } catch {}
+      });
+      cameraStreamRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+    setIsCameraActive(false);
+    setIsCameraStarting(false);
+  };
+
+  const capturePhoto = () => {
+    const video = videoRef.current;
+    if (!video || !isCameraActive) return;
+
+    try {
+      const canvas = document.createElement("canvas");
+      const vW = video.videoWidth || 640;
+      const vH = video.videoHeight || 480;
+      const size = Math.min(vW, vH);
+      const startX = (vW - size) / 2;
+      const startY = (vH - size) / 2;
+
+      // Clean portrait square 480x480
+      canvas.width = 480;
+      canvas.height = 480;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+
+      // Mirror if user front camera so photo matches user mirror view
+      if (facingMode === "user") {
+        ctx.translate(canvas.width, 0);
+        ctx.scale(-1, 1);
+      }
+
+      ctx.drawImage(video, startX, startY, size, size, 0, 0, 480, 480);
+      const dataUrl = canvas.toDataURL("image/jpeg", 0.88);
+      setPhotoUrl(dataUrl);
+      stopCamera();
+    } catch (err) {
+      console.error("Failed to capture snapshot:", err);
+    }
+  };
+
+  const handleRetakePhoto = () => {
+    setPhotoUrl("");
+    startCamera(facingMode);
+  };
+
+  const toggleCameraFacing = () => {
+    const newMode = facingMode === "user" ? "environment" : "user";
+    setFacingMode(newMode);
+    startCamera(newMode);
+  };
+
+  // Turn on camera when entering step 3 (formStep === 2) without a captured photo
+  useEffect(() => {
+    if (tab === "Home" && step === "form" && formStep === 2 && !photoUrl) {
+      startCamera();
+    } else {
+      stopCamera();
+    }
+    return () => {
+      stopCamera();
+    };
+  }, [tab, step, formStep, photoUrl]);
+
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const url = URL.createObjectURL(file);
-      setPhotoUrl(url);
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (typeof reader.result === "string") {
+          setPhotoUrl(reader.result);
+          stopCamera();
+        }
+      };
+      reader.readAsDataURL(file);
     }
   };
 
@@ -370,31 +504,31 @@ export default function App() {
   }) => {
     const cleanEmail = params.email.trim();
     const cleanName = params.name?.trim() || f.name.trim() || cleanEmail.split("@")[0].replace(/[._]/g, " ").replace(/\b\w/g, c => c.toUpperCase());
-    const cleanPhoto = params.photoUrl || photoUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(cleanName)}&backgroundColor=e8b86b&textColor=1a1230`;
     const cleanBday = params.googleAuthBday?.trim() || "";
 
     if (cleanBday) {
       setGoogleAuthBday(cleanBday);
     }
 
+    // Do NOT autopopulate date from Google Auth on the fourth page
     setF(prev => ({
       ...prev,
       email: cleanEmail,
       name: cleanName,
-      date: cleanBday || prev.date,
     }));
-    setPhotoUrl(cleanPhoto);
+
+    // Do NOT set photoUrl from Google Auth - user takes real photo via physical camera on third page
     setIsGoogleLogin(true);
     setShowClientIdModal(false);
 
-    // Call backend API immediately so user name, profile pic, and googleAuthBday are stored in MongoDB
+    // Call backend API immediately so user name and googleAuthBday are stored in MongoDB
     try {
       await googleAuthUser({
         credential: params.credential,
         email: cleanEmail,
         name: cleanName,
-        photoUrl: cleanPhoto,
-        dob: cleanBday || f.date.trim() || undefined,
+        photoUrl: photoUrl || undefined,
+        dob: f.date.trim() || undefined,
         birthTime: f.time.trim() || undefined,
         birthPlace: f.place.trim() || undefined,
         googleAuthBday: cleanBday || googleAuthBday || undefined,
@@ -403,7 +537,7 @@ export default function App() {
       console.warn("Backend Google Auth sync warning:", apiErr);
     }
 
-    // Advance to photo or DOB step smoothly
+    // Advance to photo step smoothly
     setFormStep(2);
   };
 
@@ -840,84 +974,164 @@ export default function App() {
               </section>
             )}
 
-            {/* FIELD 3: PHOTOGRAPH */}
+            {/* FIELD 3: PHOTOGRAPH / REAL CAMERA */}
             {formStep === 2 && (
               <section className="space-y-5 animate-in fade-in duration-200">
                 <div className="space-y-1">
                   <div className="inline-flex items-center gap-2 rounded-full bg-[#E8B86B]/10 px-3 py-1 text-xs text-[#E8B86B] border border-[#E8B86B]/20">
                     <span>📷</span> Visual Dossier
                   </div>
-                  <h1 className="text-2xl font-bold tracking-tight text-[#EDE9FA]">Add your photograph</h1>
+                  <h1 className="text-2xl font-bold tracking-tight text-[#EDE9FA]">Take your real photo</h1>
                   <p className="text-sm text-[#A59FC8]">
-                    Upload a portrait photo for your astrological dossier. Photos stay local on your device.
+                    Capture a live portrait using your physical camera for your personalized astral dossier.
                   </p>
                 </div>
 
-                <div className="flex flex-col items-center justify-center space-y-4">
-                  <label
-                    htmlFor="photo-upload"
-                    className="relative group flex h-44 w-44 cursor-pointer flex-col items-center justify-center overflow-hidden rounded-3xl border-2 border-dashed border-[#4A4180] bg-[#1A1533] hover:border-[#E8B86B] hover:bg-[#231C42] transition-all shadow-inner"
-                  >
-                    {photoUrl ? (
-                      <>
-                        <img src={photoUrl} alt="Uploaded portrait" className="h-full w-full object-cover" />
-                        <div className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity text-xs text-[#EDE9FA] font-medium">
-                          Change Photo
-                        </div>
-                      </>
-                    ) : (
-                      <div className="flex flex-col items-center p-4 text-center">
-                        <span className="text-3xl mb-2">📸</span>
-                        <span className="text-sm font-medium text-[#EDE9FA]">Upload Portrait</span>
-                        <span className="text-xs text-[#A59FC8] mt-1">Tap to browse or take photo</span>
+                {photoUrl ? (
+                  /* Captured Real Photo Display */
+                  <div className="flex flex-col items-center space-y-4">
+                    <div className="relative w-64 h-64 sm:w-72 sm:h-72 mx-auto rounded-3xl overflow-hidden border-2 border-[#8EF2B0]/80 shadow-[0_0_35px_rgba(142,242,176,0.25)] bg-[#0C091A]">
+                      <img src={photoUrl} alt="Captured portrait" className="w-full h-full object-cover" />
+                      <div className="absolute top-3 left-3 bg-[#8EF2B0]/95 text-[#0A170F] text-[11px] font-bold px-3 py-1 rounded-full flex items-center gap-1.5 shadow">
+                        <span>✓</span> Real Photo Captured
                       </div>
-                    )}
-                    <input
-                      id="photo-upload"
-                      type="file"
-                      accept="image/*"
-                      capture="user"
-                      hidden
-                      onChange={handlePhotoUpload}
-                    />
-                  </label>
+                    </div>
 
-                  {photoUrl ? (
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-[#8EF2B0]">✓ Photo loaded</span>
+                    <div className="flex items-center gap-3">
                       <button
                         type="button"
-                        onClick={() => setPhotoUrl("")}
-                        className="text-xs text-red-400 hover:underline cursor-pointer ml-2"
+                        onClick={handleRetakePhoto}
+                        className="text-xs text-[#E8B86B] hover:text-[#FFE2A4] flex items-center gap-1 cursor-pointer font-semibold transition-colors"
+                      >
+                        🔄 Retake Real Photo
+                      </button>
+                      <span className="text-[#4A4180]">|</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPhotoUrl("");
+                          startCamera(facingMode);
+                        }}
+                        className="text-xs text-red-400 hover:text-red-300 hover:underline cursor-pointer transition-colors"
                       >
                         Remove
                       </button>
                     </div>
-                  ) : (
-                    <p className="text-xs text-[#A59FC8] text-center max-w-xs">
-                      Portrait photo helps complete your personal natal report file.
-                    </p>
-                  )}
-                </div>
 
-                <div className="flex flex-col gap-2">
-                  <button
-                    type="button"
-                    className={btn}
-                    onClick={() => setFormStep(3)}
-                  >
-                    {photoUrl ? "Continue with Photo →" : "Continue →"}
-                  </button>
-                  {!photoUrl && (
                     <button
                       type="button"
+                      className={btn}
                       onClick={() => setFormStep(3)}
-                      className="py-2 text-xs text-[#A59FC8] hover:text-[#EDE9FA] cursor-pointer"
                     >
-                      Skip photo for now
+                      Continue with Photo →
                     </button>
-                  )}
-                </div>
+                  </div>
+                ) : (
+                  /* Live Physical Camera Viewfinder */
+                  <div className="flex flex-col items-center space-y-4">
+                    <div className="relative w-64 h-64 sm:w-72 sm:h-72 mx-auto rounded-3xl overflow-hidden border-2 border-[#E8B86B]/60 shadow-[0_0_30px_rgba(232,184,107,0.2)] bg-[#0C091A] flex items-center justify-center">
+                      <video
+                        ref={videoRef}
+                        autoPlay
+                        playsInline
+                        muted
+                        className={`w-full h-full object-cover ${facingMode === "user" ? "scale-x-[-1]" : ""}`}
+                      />
+
+                      {/* Camera Loading Overlay */}
+                      {isCameraStarting && (
+                        <div className="absolute inset-0 bg-[#0C091A]/85 flex flex-col items-center justify-center text-[#E8B86B] text-xs gap-2">
+                          <span className="animate-spin text-2xl">✨</span>
+                          <span className="font-medium">Opening physical camera...</span>
+                        </div>
+                      )}
+
+                      {/* Viewfinder Target Reticle Overlay */}
+                      {isCameraActive && (
+                        <div className="absolute inset-0 pointer-events-none p-4 flex flex-col justify-between">
+                          <div className="flex justify-between items-start">
+                            <div className="w-5 h-5 border-t-2 border-l-2 border-[#E8B86B]/80 rounded-tl-lg" />
+                            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-black/60 backdrop-blur-sm border border-[#8EF2B0]/40 text-[10px] text-[#8EF2B0] font-medium">
+                              <span className="w-1.5 h-1.5 rounded-full bg-[#8EF2B0] animate-ping" />
+                              Live Camera
+                            </div>
+                            <div className="w-5 h-5 border-t-2 border-r-2 border-[#E8B86B]/80 rounded-tr-lg" />
+                          </div>
+
+                          {/* Subtle facial alignment guide */}
+                          <div className="self-center w-36 h-44 rounded-[50%] border border-dashed border-[#E8B86B]/30" />
+
+                          <div className="flex justify-between items-end">
+                            <div className="w-5 h-5 border-b-2 border-l-2 border-[#E8B86B]/80 rounded-bl-lg" />
+                            <div className="w-5 h-5 border-b-2 border-r-2 border-[#E8B86B]/80 rounded-br-lg" />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Camera Permission / Device Error Notification */}
+                    {cameraError && (
+                      <div className="w-full space-y-2 p-3.5 rounded-2xl bg-red-950/40 border border-red-500/30 text-center">
+                        <p className="text-xs text-red-200">{cameraError}</p>
+                        <div className="flex justify-center gap-3 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => startCamera(facingMode)}
+                            className="px-3.5 py-1.5 rounded-xl bg-[#E8B86B]/20 text-[#E8B86B] hover:bg-[#E8B86B]/30 text-xs font-semibold cursor-pointer"
+                          >
+                            Try Camera Again
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Action Controls */}
+                    <div className="w-full space-y-3">
+                      <button
+                        type="button"
+                        onClick={capturePhoto}
+                        disabled={!isCameraActive}
+                        className="w-full py-3.5 px-6 rounded-2xl bg-gradient-to-r from-[#E8B86B] via-[#F3D08A] to-[#E8B86B] text-[#120E24] font-bold text-sm shadow-lg shadow-[#E8B86B]/20 hover:shadow-xl hover:scale-[1.01] active:scale-[0.99] transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <span className="w-3.5 h-3.5 rounded-full bg-red-600 border-2 border-white animate-pulse" />
+                        Take Real Photo
+                      </button>
+
+                      <div className="flex items-center justify-between w-full px-2 text-xs">
+                        <button
+                          type="button"
+                          onClick={toggleCameraFacing}
+                          className="text-[#A59FC8] hover:text-[#EDE9FA] transition-colors flex items-center gap-1 cursor-pointer"
+                        >
+                          🔄 Flip Camera ({facingMode === "user" ? "Front" : "Back"})
+                        </button>
+                        <label
+                          htmlFor="fallback-photo-upload"
+                          className="text-[#A59FC8] hover:text-[#EDE9FA] cursor-pointer underline"
+                        >
+                          Upload file instead
+                        </label>
+                        <input
+                          id="fallback-photo-upload"
+                          type="file"
+                          accept="image/*"
+                          hidden
+                          onChange={handlePhotoUpload}
+                        />
+                      </div>
+
+                      <div className="text-center pt-1">
+                        <button
+                          type="button"
+                          onClick={() => setFormStep(3)}
+                          className="py-1 text-xs text-[#A59FC8] hover:text-[#EDE9FA] cursor-pointer"
+                        >
+                          Skip photo for now
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </section>
             )}
 
