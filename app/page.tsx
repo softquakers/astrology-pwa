@@ -853,7 +853,15 @@ export default function App() {
                       onChange={e => setOk(e.target.checked)}
                     />
                     <span>
-                      I agree to the privacy policy and consent to calculating astrological charts from these details.
+                      I agree to the{" "}
+                      <a href="/privacy-policy" target="_blank" rel="noreferrer" className="text-[#E8B86B] underline hover:text-[#FFE2A4]">
+                        Privacy Policy
+                      </a>{" "}
+                      and{" "}
+                      <a href="/terms" target="_blank" rel="noreferrer" className="text-[#E8B86B] underline hover:text-[#FFE2A4]">
+                        Terms &amp; Conditions
+                      </a>
+                      , and consent to calculating astrological charts from these details.
                     </span>
                   </label>
 
@@ -1070,7 +1078,7 @@ export default function App() {
               </div>
             </div>
 
-            <div className="pt-2">
+            <div className="pt-2 space-y-3">
               <button
                 type="button"
                 onClick={() => {
@@ -1082,6 +1090,16 @@ export default function App() {
               >
                 Edit Birth Details
               </button>
+
+              <div className="flex justify-center items-center gap-3 text-xs text-[#A59FC8] pt-1">
+                <a href="/privacy-policy" target="_blank" rel="noreferrer" className="hover:text-[#E8B86B] underline transition-colors">
+                  Privacy Policy
+                </a>
+                <span>•</span>
+                <a href="/terms" target="_blank" rel="noreferrer" className="hover:text-[#E8B86B] underline transition-colors">
+                  Terms &amp; Conditions
+                </a>
+              </div>
             </div>
           </div>
         )}

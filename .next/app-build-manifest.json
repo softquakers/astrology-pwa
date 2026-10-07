@@ -14,14 +14,6 @@
       "static/chunks/main-app-b645af1b23954ca3.js",
       "static/chunks/app/api/geo/route-dbdfc3733e98b0ae.js"
     ],
-    "/layout": [
-      "static/chunks/webpack-2bc309fe597aff29.js",
-      "static/chunks/4bd1b696-c023c6e3521b1417.js",
-      "static/chunks/255-ce8c7c75002f810b.js",
-      "static/chunks/main-app-b645af1b23954ca3.js",
-      "static/css/296cbab9247bac76.css",
-      "static/chunks/app/layout-220367b61571ee58.js"
-    ],
     "/api/chart/route": [
       "static/chunks/webpack-2bc309fe597aff29.js",
       "static/chunks/4bd1b696-c023c6e3521b1417.js",
@@ -29,12 +21,52 @@
       "static/chunks/main-app-b645af1b23954ca3.js",
       "static/chunks/app/api/chart/route-dbdfc3733e98b0ae.js"
     ],
+    "/layout": [
+      "static/chunks/webpack-2bc309fe597aff29.js",
+      "static/chunks/4bd1b696-c023c6e3521b1417.js",
+      "static/chunks/255-ce8c7c75002f810b.js",
+      "static/chunks/main-app-b645af1b23954ca3.js",
+      "static/css/553ca161d7a0fe05.css",
+      "static/chunks/app/layout-220367b61571ee58.js"
+    ],
     "/page": [
       "static/chunks/webpack-2bc309fe597aff29.js",
       "static/chunks/4bd1b696-c023c6e3521b1417.js",
       "static/chunks/255-ce8c7c75002f810b.js",
       "static/chunks/main-app-b645af1b23954ca3.js",
-      "static/chunks/app/page-593eb9b7187f587f.js"
+      "static/chunks/app/page-9cd3c48da3ce877c.js"
+    ],
+    "/privacy/page": [
+      "static/chunks/webpack-2bc309fe597aff29.js",
+      "static/chunks/4bd1b696-c023c6e3521b1417.js",
+      "static/chunks/255-ce8c7c75002f810b.js",
+      "static/chunks/main-app-b645af1b23954ca3.js",
+      "static/chunks/619-ba102abea3e3d0e4.js",
+      "static/chunks/app/privacy/page-49e3990071d038e7.js"
+    ],
+    "/terms-and-conditions/page": [
+      "static/chunks/webpack-2bc309fe597aff29.js",
+      "static/chunks/4bd1b696-c023c6e3521b1417.js",
+      "static/chunks/255-ce8c7c75002f810b.js",
+      "static/chunks/main-app-b645af1b23954ca3.js",
+      "static/chunks/619-ba102abea3e3d0e4.js",
+      "static/chunks/app/terms-and-conditions/page-49e3990071d038e7.js"
+    ],
+    "/privacy-policy/page": [
+      "static/chunks/webpack-2bc309fe597aff29.js",
+      "static/chunks/4bd1b696-c023c6e3521b1417.js",
+      "static/chunks/255-ce8c7c75002f810b.js",
+      "static/chunks/main-app-b645af1b23954ca3.js",
+      "static/chunks/619-ba102abea3e3d0e4.js",
+      "static/chunks/app/privacy-policy/page-49e3990071d038e7.js"
+    ],
+    "/terms/page": [
+      "static/chunks/webpack-2bc309fe597aff29.js",
+      "static/chunks/4bd1b696-c023c6e3521b1417.js",
+      "static/chunks/255-ce8c7c75002f810b.js",
+      "static/chunks/main-app-b645af1b23954ca3.js",
+      "static/chunks/619-ba102abea3e3d0e4.js",
+      "static/chunks/app/terms/page-49e3990071d038e7.js"
     ]
   }
 }
