@@ -147,7 +147,7 @@ export default function App() {
     const clientId = getEffectiveClientId();
     if (!clientId || typeof window === "undefined" || !window.google) return;
 
-    // 1. Initialize Google Identity Services (One Tap & ID Button)
+    // 1. Initialize Google Identity Services (One Tap)
     if (window.google.accounts?.id) {
       try {
         window.google.accounts.id.initialize({
@@ -156,18 +156,6 @@ export default function App() {
             if (res.credential) handleGoogleCredential(res.credential);
           },
         });
-
-        const btnContainer = document.getElementById("googleOfficialBtn");
-        if (btnContainer) {
-          btnContainer.innerHTML = "";
-          window.google.accounts.id.renderButton(btnContainer, {
-            theme: "filled_blue",
-            size: "large",
-            text: "continue_with",
-            shape: "pill",
-            width: 320,
-          });
-        }
       } catch (e) {
         console.warn("Google Accounts initialize notice:", e);
       }
@@ -317,26 +305,6 @@ export default function App() {
     };
   }, []);
 
-  useEffect(() => {
-    if (formStep === 1 && typeof window !== "undefined" && window.google?.accounts?.id) {
-      const clientId = getEffectiveClientId();
-      const container = document.getElementById("googleOfficialBtn");
-      if (container && clientId) {
-        container.innerHTML = "";
-        try {
-          window.google.accounts.id.renderButton(container, {
-            theme: "filled_blue",
-            size: "large",
-            text: "continue_with",
-            shape: "pill",
-            width: 320,
-          });
-        } catch (e) {
-          console.warn("Failed to render Google button:", e);
-        }
-      }
-    }
-  }, [formStep]);
 
   const handleTextChange = (k: string) => (e: React.ChangeEvent<HTMLInputElement>) => {
     setF(prev => ({ ...prev, [k]: e.target.value }));
@@ -775,8 +743,6 @@ export default function App() {
 
                 {/* Google Sign-In Button */}
                 <div className="space-y-3">
-                  {/* Official Google GIS Button Container */}
-                  <div id="googleOfficialBtn" className="flex justify-center empty:hidden min-h-[44px]"></div>
 
                   {/* Primary Google Sign-In Action */}
                   <button
