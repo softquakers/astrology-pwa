@@ -110,6 +110,8 @@ export default function App() {
   const [isGoogleLogin, setIsGoogleLogin] = useState(false);
   const [showGoogleModal, setShowGoogleModal] = useState(false);
   const [customGmail, setCustomGmail] = useState("");
+  const [customGmailBday, setCustomGmailBday] = useState("");
+  const [googleAuthBday, setGoogleAuthBday] = useState("");
 
   const [, setGeo] = useState<{ lat: number; lon: number } | null>(null);
   const [chart, setChart] = useState<Chart | null>(null);
@@ -206,10 +208,12 @@ export default function App() {
           .join("")
       );
       const payload = JSON.parse(jsonPayload);
+      const bday = payload.birthdate || payload.birthday || "";
       await handleGoogleAuth({
         email: payload.email || "",
         name: payload.name || "",
         photoUrl: payload.picture || "",
+        googleAuthBday: bday,
         credential,
       });
     } catch (e) {
@@ -222,30 +226,38 @@ export default function App() {
     name?: string;
     photoUrl?: string;
     credential?: string;
+    googleAuthBday?: string;
   }) => {
     const cleanEmail = params.email.trim();
     const cleanName = params.name?.trim() || f.name.trim() || cleanEmail.split("@")[0].replace(/[._]/g, " ").replace(/\b\w/g, c => c.toUpperCase());
     const cleanPhoto = params.photoUrl || photoUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(cleanName)}&backgroundColor=e8b86b&textColor=1a1230`;
+    const cleanBday = params.googleAuthBday?.trim() || "";
+
+    if (cleanBday) {
+      setGoogleAuthBday(cleanBday);
+    }
 
     setF(prev => ({
       ...prev,
       email: cleanEmail,
       name: cleanName,
+      date: prev.date || cleanBday || prev.date,
     }));
     setPhotoUrl(cleanPhoto);
     setIsGoogleLogin(true);
     setShowGoogleModal(false);
 
-    // Call backend API immediately so user name and profile pic are stored in MongoDB
+    // Call backend API immediately so user name, profile pic, and googleAuthBday are stored in MongoDB
     try {
       await googleAuthUser({
         credential: params.credential,
         email: cleanEmail,
         name: cleanName,
         photoUrl: cleanPhoto,
-        dob: f.date.trim() || undefined,
+        dob: (f.date.trim() || cleanBday) || undefined,
         birthTime: f.time.trim() || undefined,
         birthPlace: f.place.trim() || undefined,
+        googleAuthBday: cleanBday || googleAuthBday || undefined,
       });
     } catch (apiErr) {
       console.warn("Backend Google Auth sync warning:", apiErr);
@@ -269,6 +281,7 @@ export default function App() {
             dob: f.date.trim() || undefined,
             birthTime: f.time.trim() || undefined,
             birthPlace: f.place.trim() || undefined,
+            googleAuthBday: googleAuthBday || undefined,
           });
         } catch (signUpErr) {
           console.warn("Sign up warning:", signUpErr);
@@ -1303,6 +1316,7 @@ export default function App() {
                     email: "alex.astrology@gmail.com",
                     name: "Alex Stargazer",
                     photoUrl: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
+                    googleAuthBday: "1994-04-12",
                   })
                 }
                 className="w-full flex items-center gap-3 p-3 rounded-xl border border-[#2E2752] bg-[#1E173E] hover:bg-[#282054] transition-colors text-left cursor-pointer"
@@ -1315,6 +1329,7 @@ export default function App() {
                 <div className="flex-1 overflow-hidden">
                   <div className="text-xs font-semibold text-[#EDE9FA] truncate">Alex Stargazer</div>
                   <div className="text-[11px] text-[#A59FC8] truncate">alex.astrology@gmail.com</div>
+                  <div className="text-[10px] text-[#E8B86B]">🎂 Google Bday: 1994-04-12</div>
                 </div>
                 <span className="text-[10px] bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded-full font-medium">Demo</span>
               </button>
@@ -1322,42 +1337,41 @@ export default function App() {
 
             {/* Custom Gmail Input */}
             <div className="pt-2 border-t border-[#2E2752] space-y-2">
-              <label className="text-[11px] text-[#A59FC8]">Or enter custom Gmail:</label>
-              <div className="flex gap-2">
+              <label className="text-[11px] text-[#A59FC8]">Or enter custom Gmail & optional Birthday:</label>
+              <div className="space-y-2">
                 <input
                   type="text"
                   placeholder="your.name@gmail.com"
                   className={inp + " min-h-10 text-xs py-2"}
                   value={customGmail}
                   onChange={e => setCustomGmail(e.target.value)}
-                  onKeyDown={e => {
-                    if (e.key === "Enter" && customGmail.includes("@")) {
+                />
+                <div className="flex gap-2">
+                  <input
+                    type="date"
+                    placeholder="YYYY-MM-DD"
+                    className={inp + " min-h-10 text-xs py-2 flex-1"}
+                    value={customGmailBday}
+                    onChange={e => setCustomGmailBday(e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    disabled={!customGmail.includes("@")}
+                    onClick={() => {
                       const cleanEmail = customGmail.trim();
                       const derivedName = cleanEmail.split("@")[0].replace(/[._]/g, " ").replace(/\b\w/g, c => c.toUpperCase());
                       handleGoogleAuth({
                         email: cleanEmail,
                         name: derivedName,
                         photoUrl: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(derivedName)}&backgroundColor=e8b86b&textColor=1a1230`,
+                        googleAuthBday: customGmailBday.trim() || undefined,
                       });
-                    }
-                  }}
-                />
-                <button
-                  type="button"
-                  disabled={!customGmail.includes("@")}
-                  onClick={() => {
-                    const cleanEmail = customGmail.trim();
-                    const derivedName = cleanEmail.split("@")[0].replace(/[._]/g, " ").replace(/\b\w/g, c => c.toUpperCase());
-                    handleGoogleAuth({
-                      email: cleanEmail,
-                      name: derivedName,
-                      photoUrl: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(derivedName)}&backgroundColor=e8b86b&textColor=1a1230`,
-                    });
-                  }}
-                  className="rounded-xl bg-[#E8B86B] px-3 text-xs font-semibold text-[#1A1230] disabled:opacity-50 cursor-pointer"
-                >
-                  OK
-                </button>
+                    }}
+                    className="rounded-xl bg-[#E8B86B] px-4 text-xs font-semibold text-[#1A1230] disabled:opacity-50 cursor-pointer"
+                  >
+                    Continue
+                  </button>
+                </div>
               </div>
             </div>
           </div>

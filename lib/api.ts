@@ -66,6 +66,7 @@ export interface SignUpParams {
   birthTime?: string;
   birthPlace?: string;
   googleId?: string;
+  googleAuthBday?: string;
 }
 
 export interface GoogleAuthParams {
@@ -76,6 +77,7 @@ export interface GoogleAuthParams {
   dob?: string;
   birthTime?: string;
   birthPlace?: string;
+  googleAuthBday?: string;
 }
 
 export interface SignUpResult {
@@ -90,6 +92,7 @@ export interface SignUpResult {
     dob?: string;
     birthTime?: string;
     birthPlace?: string;
+    googleAuthBday?: string;
     subscriptionStatus?: string;
     subscriptionPlan?: string;
     isPremium?: boolean;
