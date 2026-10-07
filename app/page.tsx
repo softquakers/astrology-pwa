@@ -1,6 +1,33 @@
 "use client";
 import { useEffect, useState } from "react";
-import { fetchGeoLocation, fetchBirthChart, checkServerHealth, signUpUser, BACKEND_URL } from "../lib/api";
+import { fetchGeoLocation, fetchBirthChart, checkServerHealth, signUpUser, googleAuthUser, BACKEND_URL } from "../lib/api";
+
+declare global {
+  interface Window {
+    google?: {
+      accounts: {
+        id: {
+          initialize: (config: {
+            client_id: string;
+            callback: (res: { credential?: string }) => void;
+            auto_select?: boolean;
+          }) => void;
+          renderButton: (
+            parent: HTMLElement,
+            options: {
+              theme?: "outline" | "filled_blue" | "filled_black";
+              size?: "large" | "medium" | "small";
+              text?: "signin_with" | "signup_with" | "continue_with" | "signin";
+              shape?: "rectangular" | "pill" | "circle" | "square";
+              width?: number | string;
+            }
+          ) => void;
+          prompt: () => void;
+        };
+      };
+    };
+  }
+}
 
 type P = { name: string; sign: string; deg: number; house: number };
 type Chart = { asc: string; planets: P[]; aspects: string[] };
@@ -104,7 +131,55 @@ export default function App() {
 
     // Check Express API server connectivity
     checkServerHealth().then(res => setServerOnline(!!res));
+
+    // Load Google Identity Services dynamically
+    const script = document.createElement("script");
+    script.src = "https://accounts.google.com/gsi/client";
+    script.async = true;
+    script.defer = true;
+    script.onload = () => {
+      const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+      if (clientId && window.google?.accounts?.id) {
+        try {
+          window.google.accounts.id.initialize({
+            client_id: clientId,
+            callback: (res: { credential?: string }) => {
+              if (res.credential) handleGoogleCredential(res.credential);
+            },
+          });
+        } catch (e) {
+          console.warn("Google Accounts initialize notice:", e);
+        }
+      }
+    };
+    document.body.appendChild(script);
+
+    return () => {
+      try {
+        document.body.removeChild(script);
+      } catch {}
+    };
   }, []);
+
+  useEffect(() => {
+    if (showGoogleModal && typeof window !== "undefined" && window.google?.accounts?.id) {
+      const container = document.getElementById("googleOfficialBtn");
+      const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+      if (container && clientId) {
+        try {
+          window.google.accounts.id.renderButton(container, {
+            theme: "filled_blue",
+            size: "large",
+            text: "continue_with",
+            shape: "pill",
+            width: 280,
+          });
+        } catch (e) {
+          console.warn("Failed to render Google button:", e);
+        }
+      }
+    }
+  }, [showGoogleModal]);
 
   const handleTextChange = (k: string) => (e: React.ChangeEvent<HTMLInputElement>) => {
     setF(prev => ({ ...prev, [k]: e.target.value }));
@@ -119,15 +194,63 @@ export default function App() {
     }
   };
 
-  const handleGoogleSelect = (chosenEmail: string) => {
+  const handleGoogleCredential = async (credential: string) => {
+    try {
+      const base64Url = credential.split(".")[1];
+      const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+      const jsonPayload = decodeURIComponent(
+        atob(base64)
+          .split("")
+          .map(c => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
+          .join("")
+      );
+      const payload = JSON.parse(jsonPayload);
+      await handleGoogleAuth({
+        email: payload.email || "",
+        name: payload.name || "",
+        photoUrl: payload.picture || "",
+        credential,
+      });
+    } catch (e) {
+      console.error("Failed to decode Google credential:", e);
+    }
+  };
+
+  const handleGoogleAuth = async (params: {
+    email: string;
+    name?: string;
+    photoUrl?: string;
+    credential?: string;
+  }) => {
+    const cleanEmail = params.email.trim();
+    const cleanName = params.name?.trim() || f.name.trim() || cleanEmail.split("@")[0].replace(/[._]/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+    const cleanPhoto = params.photoUrl || photoUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(cleanName)}&backgroundColor=e8b86b&textColor=1a1230`;
+
     setF(prev => ({
       ...prev,
-      email: chosenEmail,
-      name: prev.name.trim() || chosenEmail.split("@")[0].replace(/[._]/g, " ").replace(/\b\w/g, c => c.toUpperCase())
+      email: cleanEmail,
+      name: cleanName,
     }));
+    setPhotoUrl(cleanPhoto);
     setIsGoogleLogin(true);
     setShowGoogleModal(false);
-    // Smoothly advance to photograph step
+
+    // Call backend API immediately so user name and profile pic are stored in MongoDB
+    try {
+      await googleAuthUser({
+        credential: params.credential,
+        email: cleanEmail,
+        name: cleanName,
+        photoUrl: cleanPhoto,
+        dob: f.date.trim() || undefined,
+        birthTime: f.time.trim() || undefined,
+        birthPlace: f.place.trim() || undefined,
+      });
+    } catch (apiErr) {
+      console.warn("Backend Google Auth sync warning:", apiErr);
+    }
+
+    // Advance to photo or DOB step smoothly
     setFormStep(2);
   };
 
@@ -135,13 +258,16 @@ export default function App() {
     setErr("");
     setBusy(true);
     try {
-      // 1. Call Sign Up API with user's details (subscription details added later)
+      // 1. Call Sign Up API with full user details: email, name, profile pic, and DOB!
       if (f.email.trim()) {
         try {
           await signUpUser({
             email: f.email.trim(),
             name: f.name.trim(),
             photoUrl: photoUrl || undefined,
+            dob: f.date.trim() || undefined,
+            birthTime: f.time.trim() || undefined,
+            birthPlace: f.place.trim() || undefined,
           });
         } catch (signUpErr) {
           console.warn("Sign up warning:", signUpErr);
@@ -1034,42 +1160,62 @@ export default function App() {
               Select a Google account to continue with Astro Reports:
             </p>
 
-            {/* Quick account options */}
+            {/* Official Google GIS Button Container if configured */}
+            <div id="googleOfficialBtn" className="flex justify-center empty:hidden min-h-[40px]"></div>
+
+            {/* Quick account options with profile photos */}
             <div className="space-y-2">
               {f.name.trim() && (
                 <button
                   type="button"
-                  onClick={() =>
-                    handleGoogleSelect(
-                      `${f.name.trim().toLowerCase().replace(/[^a-z0-9]/g, ".")}@gmail.com`
-                    )
-                  }
+                  onClick={() => {
+                    const cleanName = f.name.trim();
+                    const cleanEmail = `${cleanName.toLowerCase().replace(/[^a-z0-9]/g, ".")}@gmail.com`;
+                    const pic = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(cleanName)}&backgroundColor=e8b86b&textColor=1a1230`;
+                    handleGoogleAuth({
+                      email: cleanEmail,
+                      name: cleanName,
+                      photoUrl: pic,
+                    });
+                  }}
                   className="w-full flex items-center gap-3 p-3 rounded-xl border border-[#2E2752] bg-[#1E173E] hover:bg-[#282054] transition-colors text-left cursor-pointer"
                 >
-                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#E8B86B] text-xs font-bold text-[#1A1230]">
-                    {f.name.trim()[0].toUpperCase()}
-                  </div>
+                  <img
+                    src={`https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(f.name.trim())}&backgroundColor=e8b86b&textColor=1a1230`}
+                    alt="avatar"
+                    className="h-9 w-9 rounded-full object-cover border border-[#E8B86B]"
+                  />
                   <div className="flex-1 overflow-hidden">
                     <div className="text-xs font-semibold text-[#EDE9FA] truncate">{f.name.trim()}</div>
                     <div className="text-[11px] text-[#A59FC8] truncate">
                       {f.name.trim().toLowerCase().replace(/[^a-z0-9]/g, ".")}@gmail.com
                     </div>
                   </div>
+                  <span className="text-[10px] bg-[#E8B86B]/20 text-[#E8B86B] px-2 py-0.5 rounded-full font-medium">Use Name</span>
                 </button>
               )}
 
               <button
                 type="button"
-                onClick={() => handleGoogleSelect("alex.astrology@gmail.com")}
+                onClick={() =>
+                  handleGoogleAuth({
+                    email: "alex.astrology@gmail.com",
+                    name: "Alex Stargazer",
+                    photoUrl: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
+                  })
+                }
                 className="w-full flex items-center gap-3 p-3 rounded-xl border border-[#2E2752] bg-[#1E173E] hover:bg-[#282054] transition-colors text-left cursor-pointer"
               >
-                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#4285F4] text-xs font-bold text-white">
-                  A
-                </div>
+                <img
+                  src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80"
+                  alt="Alex"
+                  className="h-9 w-9 rounded-full object-cover border border-[#4285F4]"
+                />
                 <div className="flex-1 overflow-hidden">
                   <div className="text-xs font-semibold text-[#EDE9FA] truncate">Alex Stargazer</div>
                   <div className="text-[11px] text-[#A59FC8] truncate">alex.astrology@gmail.com</div>
                 </div>
+                <span className="text-[10px] bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded-full font-medium">Demo</span>
               </button>
             </div>
 
@@ -1085,14 +1231,28 @@ export default function App() {
                   onChange={e => setCustomGmail(e.target.value)}
                   onKeyDown={e => {
                     if (e.key === "Enter" && customGmail.includes("@")) {
-                      handleGoogleSelect(customGmail.trim());
+                      const cleanEmail = customGmail.trim();
+                      const derivedName = cleanEmail.split("@")[0].replace(/[._]/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+                      handleGoogleAuth({
+                        email: cleanEmail,
+                        name: derivedName,
+                        photoUrl: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(derivedName)}&backgroundColor=e8b86b&textColor=1a1230`,
+                      });
                     }
                   }}
                 />
                 <button
                   type="button"
                   disabled={!customGmail.includes("@")}
-                  onClick={() => handleGoogleSelect(customGmail.trim())}
+                  onClick={() => {
+                    const cleanEmail = customGmail.trim();
+                    const derivedName = cleanEmail.split("@")[0].replace(/[._]/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+                    handleGoogleAuth({
+                      email: cleanEmail,
+                      name: derivedName,
+                      photoUrl: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(derivedName)}&backgroundColor=e8b86b&textColor=1a1230`,
+                    });
+                  }}
                   className="rounded-xl bg-[#E8B86B] px-3 text-xs font-semibold text-[#1A1230] disabled:opacity-50 cursor-pointer"
                 >
                   OK

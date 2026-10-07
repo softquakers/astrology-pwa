@@ -62,6 +62,20 @@ export interface SignUpParams {
   email: string;
   name?: string;
   photoUrl?: string;
+  dob?: string;
+  birthTime?: string;
+  birthPlace?: string;
+  googleId?: string;
+}
+
+export interface GoogleAuthParams {
+  credential?: string;
+  email?: string;
+  name?: string;
+  photoUrl?: string;
+  dob?: string;
+  birthTime?: string;
+  birthPlace?: string;
 }
 
 export interface SignUpResult {
@@ -73,6 +87,9 @@ export interface SignUpResult {
     email: string;
     name?: string;
     photoUrl?: string;
+    dob?: string;
+    birthTime?: string;
+    birthPlace?: string;
     subscriptionStatus?: string;
     subscriptionPlan?: string;
     isPremium?: boolean;
@@ -89,6 +106,20 @@ export async function signUpUser(params: SignUpParams): Promise<SignUpResult> {
   const data = await res.json();
   if (!res.ok || data.error) {
     throw new Error(data.error || "Could not sign up user");
+  }
+  return data;
+}
+
+export async function googleAuthUser(params: GoogleAuthParams): Promise<SignUpResult> {
+  const endpoint = `${BASE_URL}/api/users/google-auth`;
+  const res = await fetch(endpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+  });
+  const data = await res.json();
+  if (!res.ok || data.error) {
+    throw new Error(data.error || "Could not authenticate with Google");
   }
   return data;
 }
