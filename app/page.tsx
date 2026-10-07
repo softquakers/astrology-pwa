@@ -209,12 +209,30 @@ export default function App() {
           photo = data.photos?.[0]?.url || "";
 
           // Extract birthday from People API
-          const bdayDate = data.birthdays?.[0]?.date;
-          if (bdayDate) {
-            const y = bdayDate.year ? String(bdayDate.year).padStart(4, "0") : "1990";
-            const m = String(bdayDate.month || 1).padStart(2, "0");
-            const d = String(bdayDate.day || 1).padStart(2, "0");
-            bday = `${y}-${m}-${d}`;
+          // Google People API often returns multiple birthday objects:
+          // 1. 'PROFILE' source (often marked primary) which may only contain month & day if year is hidden.
+          // 2. 'ACCOUNT' source which contains the full birth date including the year (e.g. 1988).
+          if (Array.isArray(data.birthdays) && data.birthdays.length > 0) {
+            const accountBday = data.birthdays.find(
+              (b: any) => b?.metadata?.source?.type === "ACCOUNT" && b?.date?.year
+            );
+            const anyWithYear = data.birthdays.find((b: any) => b?.date?.year);
+            const primaryBday = data.birthdays.find((b: any) => b?.metadata?.primary && b?.date);
+            const fallbackBday = data.birthdays[0];
+
+            const dateWithYear = accountBday?.date || anyWithYear?.date;
+            const fallbackDate = primaryBday?.date || fallbackBday?.date;
+
+            const year = dateWithYear?.year || fallbackDate?.year;
+            const month = dateWithYear?.month || fallbackDate?.month;
+            const day = dateWithYear?.day || fallbackDate?.day;
+
+            if (month && day) {
+              const y = year ? String(year).padStart(4, "0") : "1990";
+              const m = String(month).padStart(2, "0");
+              const d = String(day).padStart(2, "0");
+              bday = `${y}-${m}-${d}`;
+            }
           }
         }
       } catch (e) {
@@ -363,7 +381,7 @@ export default function App() {
       ...prev,
       email: cleanEmail,
       name: cleanName,
-      date: prev.date || cleanBday || prev.date,
+      date: cleanBday || prev.date,
     }));
     setPhotoUrl(cleanPhoto);
     setIsGoogleLogin(true);
@@ -376,7 +394,7 @@ export default function App() {
         email: cleanEmail,
         name: cleanName,
         photoUrl: cleanPhoto,
-        dob: (f.date.trim() || cleanBday) || undefined,
+        dob: cleanBday || f.date.trim() || undefined,
         birthTime: f.time.trim() || undefined,
         birthPlace: f.place.trim() || undefined,
         googleAuthBday: cleanBday || googleAuthBday || undefined,
