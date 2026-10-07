@@ -121,6 +121,7 @@ export default function App() {
   const [busy, setBusy] = useState(false);
   const [ok, setOk] = useState(true);
   const [serverOnline, setServerOnline] = useState<boolean | null>(null);
+  const [showPurposeDetails, setShowPurposeDetails] = useState(false);
 
   useEffect(() => {
     try {
@@ -340,7 +341,10 @@ export default function App() {
             <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-tr from-[#E8B86B] to-[#FFE2A4] text-sm text-[#1A1230] font-bold shadow-md shadow-[#E8B86B]/20">
               ✨
             </span>
-            <span className="font-semibold tracking-wide text-base text-[#EDE9FA]">Astro Reports</span>
+            <div className="flex flex-col leading-tight">
+              <span className="font-bold tracking-wide text-sm sm:text-base text-[#EDE9FA]">Astrology App</span>
+              <span className="text-[10px] text-[#A59FC8]">Astro Reports</span>
+            </div>
             {serverOnline !== null && (
               <span
                 className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium border transition-colors ${
@@ -368,6 +372,85 @@ export default function App() {
             </button>
           )}
         </header>
+
+        {/* Home Page Title & App Purpose Section */}
+        {tab === "Home" && (
+          <section className="space-y-3 pt-1">
+            <div className="space-y-1.5 text-center">
+              <div className="inline-flex items-center gap-1.5 rounded-full bg-[#E8B86B]/10 px-3 py-0.5 text-[11px] font-medium text-[#E8B86B] border border-[#E8B86B]/25">
+                ✨ Precision Ephemeris &amp; Natal Charts
+              </div>
+              <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#EDE9FA]">
+                Astrology App
+              </h1>
+              <p className="text-xs text-[#A59FC8] leading-relaxed max-w-sm mx-auto">
+                Discover your exact cosmic blueprint. Calculate your natal birth chart, rising sign (ascendant), and personalized planetary insights.
+              </p>
+            </div>
+
+            {/* Purpose of This App Card */}
+            <div className="rounded-2xl border border-[#2E2752] bg-[#16122E]/80 p-3.5 text-xs shadow-md space-y-2.5">
+              <div className="flex items-center justify-between">
+                <span className="font-semibold text-[#E8B86B] flex items-center gap-1.5 text-xs">
+                  <span>🌌</span> Purpose of this App
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowPurposeDetails(v => !v)}
+                  className="text-[11px] text-[#E8B86B] hover:text-[#FFE2A4] hover:underline cursor-pointer flex items-center gap-1 font-medium"
+                >
+                  {showPurposeDetails ? "Hide Details ▲" : "How It Works ▼"}
+                </button>
+              </div>
+
+              <p className="text-[#D6D1EE] leading-relaxed">
+                This app uses astronomical planetary ephemeris to map the exact cosmic sky at your birth moment. By entering your birth date, time, and coordinates, it determines your planetary signs, houses, rising sign, and aspect alignments to provide deep personal guidance and answer life questions.
+              </p>
+
+              {showPurposeDetails && (
+                <div className="pt-2.5 border-t border-[#2E2752]/70 space-y-2 animate-in fade-in duration-150">
+                  <div className="grid grid-cols-2 gap-2 text-[11px]">
+                    <div className="rounded-xl bg-[#1A1533] p-2.5 border border-[#2E2752] space-y-1">
+                      <div className="font-semibold text-[#EDE9FA] flex items-center gap-1">
+                        <span>🪐</span> Natal Birth Chart
+                      </div>
+                      <p className="text-[#A59FC8] leading-tight">
+                        Calculates precise degrees of Sun, Moon, and planets across all 12 astrological houses.
+                      </p>
+                    </div>
+
+                    <div className="rounded-xl bg-[#1A1533] p-2.5 border border-[#2E2752] space-y-1">
+                      <div className="font-semibold text-[#EDE9FA] flex items-center gap-1">
+                        <span>☀️</span> Rising Sign (Asc)
+                      </div>
+                      <p className="text-[#A59FC8] leading-tight">
+                        Identifies the eastern horizon zodiac sign using your exact birth place coordinates and timezone.
+                      </p>
+                    </div>
+
+                    <div className="rounded-xl bg-[#1A1533] p-2.5 border border-[#2E2752] space-y-1">
+                      <div className="font-semibold text-[#EDE9FA] flex items-center gap-1">
+                        <span>🔮</span> Question Readings
+                      </div>
+                      <p className="text-[#A59FC8] leading-tight">
+                        Ask any career, love, or life direction query analyzed against your personal chart aspects.
+                      </p>
+                    </div>
+
+                    <div className="rounded-xl bg-[#1A1533] p-2.5 border border-[#2E2752] space-y-1">
+                      <div className="font-semibold text-[#EDE9FA] flex items-center gap-1">
+                        <span>🔒</span> Cloud Dossier
+                      </div>
+                      <p className="text-[#A59FC8] leading-tight">
+                        Sign in with Google to securely store and retrieve your birth chart records and dossier anytime.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </section>
+        )}
 
         {/* Backend Server URL Status Banner (Homepage) */}
         {tab === "Home" && (
