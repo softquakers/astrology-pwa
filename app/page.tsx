@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { fetchGeoLocation, fetchBirthChart, checkServerHealth, signUpUser, googleAuthUser, BACKEND_URL } from "../lib/api";
 
 declare global {
@@ -23,6 +23,16 @@ declare global {
             }
           ) => void;
           prompt: () => void;
+        };
+        oauth2: {
+          initTokenClient: (config: {
+            client_id: string;
+            scope: string;
+            callback: (tokenResponse: any) => void;
+            prompt?: string;
+          }) => {
+            requestAccessToken: (overrideConfig?: { prompt?: string }) => void;
+          };
         };
       };
     };
@@ -108,10 +118,11 @@ export default function App() {
   const [f, setF] = useState({ name: "", email: "", date: "", time: "", place: "" });
   const [photoUrl, setPhotoUrl] = useState<string>("");
   const [isGoogleLogin, setIsGoogleLogin] = useState(false);
-  const [showGoogleModal, setShowGoogleModal] = useState(false);
-  const [customGmail, setCustomGmail] = useState("");
-  const [customGmailBday, setCustomGmailBday] = useState("");
   const [googleAuthBday, setGoogleAuthBday] = useState("");
+  const [showClientIdModal, setShowClientIdModal] = useState(false);
+  const [customClientId, setCustomClientId] = useState("");
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const tokenClientRef = useRef<any>(null);
 
   const [, setGeo] = useState<{ lat: number; lon: number } | null>(null);
   const [chart, setChart] = useState<Chart | null>(null);
@@ -124,6 +135,160 @@ export default function App() {
   const [ok, setOk] = useState(true);
   const [serverOnline, setServerOnline] = useState<boolean | null>(null);
   const [showPurposeDetails, setShowPurposeDetails] = useState(false);
+
+  const getEffectiveClientId = () => {
+    return (
+      process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ||
+      (typeof window !== "undefined" ? localStorage.getItem("google_client_id") || "" : "")
+    );
+  };
+
+  const initGoogleAuth = () => {
+    const clientId = getEffectiveClientId();
+    if (!clientId || typeof window === "undefined" || !window.google) return;
+
+    // 1. Initialize Google Identity Services (One Tap & ID Button)
+    if (window.google.accounts?.id) {
+      try {
+        window.google.accounts.id.initialize({
+          client_id: clientId,
+          callback: (res: { credential?: string }) => {
+            if (res.credential) handleGoogleCredential(res.credential);
+          },
+        });
+
+        const btnContainer = document.getElementById("googleOfficialBtn");
+        if (btnContainer) {
+          btnContainer.innerHTML = "";
+          window.google.accounts.id.renderButton(btnContainer, {
+            theme: "filled_blue",
+            size: "large",
+            text: "continue_with",
+            shape: "pill",
+            width: 320,
+          });
+        }
+      } catch (e) {
+        console.warn("Google Accounts initialize notice:", e);
+      }
+    }
+
+    // 2. Initialize OAuth 2.0 Token Client (to request Scopes including user.birthday.read)
+    if (window.google.accounts?.oauth2) {
+      try {
+        tokenClientRef.current = window.google.accounts.oauth2.initTokenClient({
+          client_id: clientId,
+          scope: "openid email profile https://www.googleapis.com/auth/user.birthday.read",
+          callback: async (tokenResponse: any) => {
+            if (tokenResponse.error) {
+              console.error("Google OAuth error:", tokenResponse);
+              setGoogleLoading(false);
+              if (tokenResponse.error !== "popup_closed_by_user") {
+                setErr(tokenResponse.error_description || "Google sign-in was cancelled or failed");
+              }
+              return;
+            }
+            await handleOAuthToken(tokenResponse.access_token);
+          },
+        });
+      } catch (e) {
+        console.warn("Google OAuth2 TokenClient notice:", e);
+      }
+    }
+  };
+
+  const handleOAuthToken = async (accessToken: string) => {
+    setGoogleLoading(true);
+    setErr("");
+    try {
+      let email = "";
+      let name = "";
+      let photo = "";
+      let bday = "";
+
+      // 1. Attempt to fetch profile & birthday from Google People API
+      try {
+        const peopleRes = await fetch(
+          "https://people.googleapis.com/v1/people/me?personFields=names,emailAddresses,photos,birthdays",
+          {
+            headers: { Authorization: `Bearer ${accessToken}` },
+          }
+        );
+        if (peopleRes.ok) {
+          const data = await peopleRes.json();
+          email = data.emailAddresses?.[0]?.value || "";
+          name = data.names?.[0]?.displayName || "";
+          photo = data.photos?.[0]?.url || "";
+
+          // Extract birthday from People API
+          const bdayDate = data.birthdays?.[0]?.date;
+          if (bdayDate) {
+            const y = bdayDate.year ? String(bdayDate.year).padStart(4, "0") : "1990";
+            const m = String(bdayDate.month || 1).padStart(2, "0");
+            const d = String(bdayDate.day || 1).padStart(2, "0");
+            bday = `${y}-${m}-${d}`;
+          }
+        }
+      } catch (e) {
+        console.warn("People API fetch notice:", e);
+      }
+
+      // 2. Fallback to Google userinfo if email is not yet found
+      if (!email) {
+        const userinfoRes = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        if (userinfoRes.ok) {
+          const info = await userinfoRes.json();
+          email = info.email || "";
+          name = name || info.name || "";
+          photo = photo || info.picture || "";
+          if (info.birthdate) bday = info.birthdate;
+        }
+      }
+
+      if (!email) {
+        throw new Error("Could not retrieve email from Google. Please enter email manually.");
+      }
+
+      await handleGoogleAuth({
+        email,
+        name,
+        photoUrl: photo,
+        googleAuthBday: bday,
+      });
+    } catch (e: any) {
+      console.error("Google OAuth token processing failed:", e);
+      setErr(e.message || "Failed to process Google sign-in");
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
+
+  const triggerGoogleSignIn = () => {
+    const clientId = getEffectiveClientId();
+    if (!clientId) {
+      setShowClientIdModal(true);
+      return;
+    }
+
+    if (tokenClientRef.current) {
+      setGoogleLoading(true);
+      tokenClientRef.current.requestAccessToken({ prompt: "select_account" });
+      return;
+    }
+
+    if (typeof window !== "undefined" && window.google?.accounts?.id) {
+      try {
+        window.google.accounts.id.prompt();
+        return;
+      } catch (e) {
+        console.warn("Google One Tap error:", e);
+      }
+    }
+
+    setShowClientIdModal(true);
+  };
 
   useEffect(() => {
     try {
@@ -141,19 +306,7 @@ export default function App() {
     script.async = true;
     script.defer = true;
     script.onload = () => {
-      const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
-      if (clientId && window.google?.accounts?.id) {
-        try {
-          window.google.accounts.id.initialize({
-            client_id: clientId,
-            callback: (res: { credential?: string }) => {
-              if (res.credential) handleGoogleCredential(res.credential);
-            },
-          });
-        } catch (e) {
-          console.warn("Google Accounts initialize notice:", e);
-        }
-      }
+      initGoogleAuth();
     };
     document.body.appendChild(script);
 
@@ -165,24 +318,25 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (showGoogleModal && typeof window !== "undefined" && window.google?.accounts?.id) {
+    if (formStep === 1 && typeof window !== "undefined" && window.google?.accounts?.id) {
+      const clientId = getEffectiveClientId();
       const container = document.getElementById("googleOfficialBtn");
-      const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
       if (container && clientId) {
+        container.innerHTML = "";
         try {
           window.google.accounts.id.renderButton(container, {
             theme: "filled_blue",
             size: "large",
             text: "continue_with",
             shape: "pill",
-            width: 280,
+            width: 320,
           });
         } catch (e) {
           console.warn("Failed to render Google button:", e);
         }
       }
     }
-  }, [showGoogleModal]);
+  }, [formStep]);
 
   const handleTextChange = (k: string) => (e: React.ChangeEvent<HTMLInputElement>) => {
     setF(prev => ({ ...prev, [k]: e.target.value }));
@@ -245,7 +399,7 @@ export default function App() {
     }));
     setPhotoUrl(cleanPhoto);
     setIsGoogleLogin(true);
-    setShowGoogleModal(false);
+    setShowClientIdModal(false);
 
     // Call backend API immediately so user name, profile pic, and googleAuthBday are stored in MongoDB
     try {
@@ -621,30 +775,47 @@ export default function App() {
 
                 {/* Google Sign-In Button */}
                 <div className="space-y-3">
+                  {/* Official Google GIS Button Container */}
+                  <div id="googleOfficialBtn" className="flex justify-center empty:hidden min-h-[44px]"></div>
+
+                  {/* Primary Google Sign-In Action */}
                   <button
                     type="button"
-                    onClick={() => setShowGoogleModal(true)}
-                    className="w-full min-h-12 rounded-xl bg-[#231C42] hover:bg-[#2C2454] border border-[#3E346B] text-sm font-medium text-[#EDE9FA] flex items-center justify-center gap-3 transition-colors cursor-pointer shadow-sm active:scale-[0.99]"
+                    onClick={triggerGoogleSignIn}
+                    disabled={googleLoading}
+                    className="w-full min-h-12 rounded-xl bg-[#231C42] hover:bg-[#2C2454] border border-[#3E346B] text-sm font-medium text-[#EDE9FA] flex items-center justify-center gap-3 transition-colors cursor-pointer shadow-sm active:scale-[0.99] disabled:opacity-60"
                   >
-                    <svg className="h-5 w-5" viewBox="0 0 24 24">
-                      <path
-                        fill="#4285F4"
-                        d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                      />
-                      <path
-                        fill="#34A853"
-                        d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                      />
-                      <path
-                        fill="#FBBC05"
-                        d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
-                      />
-                      <path
-                        fill="#EA4335"
-                        d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
-                      />
-                    </svg>
-                    <span>{isGoogleLogin ? "Google Connected ✓" : "Continue with Google (Gmail)"}</span>
+                    {googleLoading ? (
+                      <span className="flex items-center gap-2">
+                        <svg className="animate-spin h-4 w-4 text-[#E8B86B]" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                        </svg>
+                        <span>Connecting with Google...</span>
+                      </span>
+                    ) : (
+                      <>
+                        <svg className="h-5 w-5" viewBox="0 0 24 24">
+                          <path
+                            fill="#4285F4"
+                            d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                          />
+                          <path
+                            fill="#34A853"
+                            d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                          />
+                          <path
+                            fill="#FBBC05"
+                            d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+                          />
+                          <path
+                            fill="#EA4335"
+                            d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+                          />
+                        </svg>
+                        <span>{isGoogleLogin ? "Google Connected ✓" : "Continue with Google"}</span>
+                      </>
+                    )}
                   </button>
 
                   <div className="relative flex items-center justify-center">
@@ -1235,8 +1406,8 @@ export default function App() {
         )}
       </main>
 
-      {/* GOOGLE SIGN-IN MODAL */}
-      {showGoogleModal && (
+      {/* GOOGLE CLIENT ID SETUP MODAL (Shown only if Client ID is not yet configured) */}
+      {showClientIdModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 px-4 backdrop-blur-sm animate-in fade-in duration-150">
           <div className="w-full max-w-sm rounded-3xl border border-[#3E346B] bg-[#171233] p-6 shadow-2xl space-y-4">
             <div className="flex items-center justify-between pb-2 border-b border-[#2E2752]">
@@ -1259,119 +1430,61 @@ export default function App() {
                     d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
                   />
                 </svg>
-                <span className="text-sm font-semibold text-[#EDE9FA]">Sign in with Google</span>
+                <span className="text-sm font-semibold text-[#EDE9FA]">Connect Google Sign-In</span>
               </div>
               <button
                 type="button"
-                onClick={() => setShowGoogleModal(false)}
+                onClick={() => setShowClientIdModal(false)}
                 className="text-[#A59FC8] hover:text-white text-lg font-bold cursor-pointer"
               >
                 ✕
               </button>
             </div>
 
-            <p className="text-xs text-[#A59FC8]">
-              Select a Google account to continue with Astro Reports:
+            <p className="text-xs text-[#A59FC8] leading-relaxed">
+              To launch the official Google popup and read profile/birthday data, enter your Google OAuth Web Client ID (from Google Cloud Console):
             </p>
 
-            {/* Official Google GIS Button Container if configured */}
-            <div id="googleOfficialBtn" className="flex justify-center empty:hidden min-h-[40px]"></div>
+            <div className="space-y-3">
+              <input
+                type="text"
+                placeholder="xxxx.apps.googleusercontent.com"
+                className={inp + " min-h-10 text-xs py-2"}
+                value={customClientId}
+                onChange={e => setCustomClientId(e.target.value)}
+              />
 
-            {/* Quick account options with profile photos */}
-            <div className="space-y-2">
-              {f.name.trim() && (
+              <div className="flex gap-2">
                 <button
                   type="button"
+                  disabled={!customClientId.trim()}
                   onClick={() => {
-                    const cleanName = f.name.trim();
-                    const cleanEmail = `${cleanName.toLowerCase().replace(/[^a-z0-9]/g, ".")}@gmail.com`;
-                    const pic = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(cleanName)}&backgroundColor=e8b86b&textColor=1a1230`;
-                    handleGoogleAuth({
-                      email: cleanEmail,
-                      name: cleanName,
-                      photoUrl: pic,
-                    });
+                    const clean = customClientId.trim();
+                    if (clean) {
+                      localStorage.setItem("google_client_id", clean);
+                      setShowClientIdModal(false);
+                      initGoogleAuth();
+                      setTimeout(() => {
+                        triggerGoogleSignIn();
+                      }, 200);
+                    }
                   }}
-                  className="w-full flex items-center gap-3 p-3 rounded-xl border border-[#2E2752] bg-[#1E173E] hover:bg-[#282054] transition-colors text-left cursor-pointer"
+                  className="flex-1 rounded-xl bg-[#E8B86B] py-2.5 text-xs font-semibold text-[#1A1230] disabled:opacity-50 cursor-pointer"
                 >
-                  <img
-                    src={`https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(f.name.trim())}&backgroundColor=e8b86b&textColor=1a1230`}
-                    alt="avatar"
-                    className="h-9 w-9 rounded-full object-cover border border-[#E8B86B]"
-                  />
-                  <div className="flex-1 overflow-hidden">
-                    <div className="text-xs font-semibold text-[#EDE9FA] truncate">{f.name.trim()}</div>
-                    <div className="text-[11px] text-[#A59FC8] truncate">
-                      {f.name.trim().toLowerCase().replace(/[^a-z0-9]/g, ".")}@gmail.com
-                    </div>
-                  </div>
-                  <span className="text-[10px] bg-[#E8B86B]/20 text-[#E8B86B] px-2 py-0.5 rounded-full font-medium">Use Name</span>
+                  Save &amp; Sign In
                 </button>
-              )}
+                <button
+                  type="button"
+                  onClick={() => setShowClientIdModal(false)}
+                  className="rounded-xl border border-[#3E346B] px-3 text-xs text-[#A59FC8] hover:text-white cursor-pointer"
+                >
+                  Cancel
+                </button>
+              </div>
 
-              <button
-                type="button"
-                onClick={() =>
-                  handleGoogleAuth({
-                    email: "alex.astrology@gmail.com",
-                    name: "Alex Stargazer",
-                    photoUrl: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
-                    googleAuthBday: "1994-04-12",
-                  })
-                }
-                className="w-full flex items-center gap-3 p-3 rounded-xl border border-[#2E2752] bg-[#1E173E] hover:bg-[#282054] transition-colors text-left cursor-pointer"
-              >
-                <img
-                  src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80"
-                  alt="Alex"
-                  className="h-9 w-9 rounded-full object-cover border border-[#4285F4]"
-                />
-                <div className="flex-1 overflow-hidden">
-                  <div className="text-xs font-semibold text-[#EDE9FA] truncate">Alex Stargazer</div>
-                  <div className="text-[11px] text-[#A59FC8] truncate">alex.astrology@gmail.com</div>
-                  <div className="text-[10px] text-[#E8B86B]">🎂 Google Bday: 1994-04-12</div>
-                </div>
-                <span className="text-[10px] bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded-full font-medium">Demo</span>
-              </button>
-            </div>
-
-            {/* Custom Gmail Input */}
-            <div className="pt-2 border-t border-[#2E2752] space-y-2">
-              <label className="text-[11px] text-[#A59FC8]">Or enter custom Gmail & optional Birthday:</label>
-              <div className="space-y-2">
-                <input
-                  type="text"
-                  placeholder="your.name@gmail.com"
-                  className={inp + " min-h-10 text-xs py-2"}
-                  value={customGmail}
-                  onChange={e => setCustomGmail(e.target.value)}
-                />
-                <div className="flex gap-2">
-                  <input
-                    type="date"
-                    placeholder="YYYY-MM-DD"
-                    className={inp + " min-h-10 text-xs py-2 flex-1"}
-                    value={customGmailBday}
-                    onChange={e => setCustomGmailBday(e.target.value)}
-                  />
-                  <button
-                    type="button"
-                    disabled={!customGmail.includes("@")}
-                    onClick={() => {
-                      const cleanEmail = customGmail.trim();
-                      const derivedName = cleanEmail.split("@")[0].replace(/[._]/g, " ").replace(/\b\w/g, c => c.toUpperCase());
-                      handleGoogleAuth({
-                        email: cleanEmail,
-                        name: derivedName,
-                        photoUrl: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(derivedName)}&backgroundColor=e8b86b&textColor=1a1230`,
-                        googleAuthBday: customGmailBday.trim() || undefined,
-                      });
-                    }}
-                    className="rounded-xl bg-[#E8B86B] px-4 text-xs font-semibold text-[#1A1230] disabled:opacity-50 cursor-pointer"
-                  >
-                    Continue
-                  </button>
-                </div>
+              <div className="text-[11px] text-[#7C75A3] bg-[#150F2B] p-2.5 rounded-xl border border-[#2E2752] space-y-1">
+                <div>💡 <strong className="text-[#A59FC8]">For production:</strong></div>
+                <div>Add <code className="text-[#E8B86B]">NEXT_PUBLIC_GOOGLE_CLIENT_ID</code> in your Netlify Environment Variables.</div>
               </div>
             </div>
           </div>
