@@ -41,7 +41,16 @@ declare global {
 
 type P = { name: string; sign: string; deg: number; house: number };
 type Chart = { asc: string; planets: P[]; aspects: string[] };
-type Rec = { q: string; name: string; at: string; chart: Chart };
+
+export interface AstrologicalAnswer {
+  summary: string;
+  interpretation: string;
+  keyPlacements: { planet: string; sign: string; house: number; relevance: string }[];
+  cosmicAdvice: string[];
+  timing: string;
+}
+
+type Rec = { q: string; name: string; at: string; chart: Chart; answer?: AstrologicalAnswer };
 
 const TABS = ["Home", "History", "Profile", "Plans"] as const;
 
@@ -75,6 +84,149 @@ function getZodiacSign(dateStr: string) {
   return signs[idx];
 }
 
+function generateAstrologicalAnswer(question: string, querentName: string, chart: Chart): AstrologicalAnswer {
+  const qLower = question.toLowerCase();
+
+  const sun = chart.planets.find(p => p.name === "Sun") || { name: "Sun", sign: "Aries", deg: 0, house: 1 };
+  const moon = chart.planets.find(p => p.name === "Moon") || { name: "Moon", sign: "Taurus", deg: 0, house: 2 };
+  const mercury = chart.planets.find(p => p.name === "Mercury") || { name: "Mercury", sign: "Gemini", deg: 0, house: 3 };
+  const venus = chart.planets.find(p => p.name === "Venus") || { name: "Venus", sign: "Libra", deg: 0, house: 7 };
+  const mars = chart.planets.find(p => p.name === "Mars") || { name: "Mars", sign: "Scorpio", deg: 0, house: 8 };
+  const jupiter = chart.planets.find(p => p.name === "Jupiter") || { name: "Jupiter", sign: "Sagittarius", deg: 0, house: 9 };
+  const saturn = chart.planets.find(p => p.name === "Saturn") || { name: "Saturn", sign: "Capricorn", deg: 0, house: 10 };
+  const asc = chart.asc || "Aries";
+
+  const isCareer = /(career|job|work|promotion|business|money|finance|wealth|grow|salary|profession|boss|company|hire|invest|2026|office|goal|success|raise)/i.test(qLower);
+  const isLove = /(love|marriage|partner|relationship|dating|romance|husband|wife|boyfriend|girlfriend|soulmate|marry|divorce|crush|heart|couple)/i.test(qLower);
+  const isHealth = /(health|stress|body|vitality|energy|healing|illness|disease|mind|exhaust|diet|workout|sleep)/i.test(qLower);
+
+  if (isCareer) {
+    return {
+      summary: `Your natal chart indicates strong professional momentum, with ${jupiter.name} in ${jupiter.sign} (House ${jupiter.house}) empowering upward career expansion for ${querentName}.`,
+      interpretation: `With your Ascendant in ${asc} and your Sun radiating in ${sun.sign} in House ${sun.house}, your career blueprint thrives on clear vision and self-directed leadership. Jupiter's placement in House ${jupiter.house} signals that calculated boldness and strategic moves will unlock lucrative doors. Meanwhile, Saturn in ${saturn.sign} in House ${saturn.house} acts as your grounding pillar—ensuring that milestones achieved through discipline and consistency will stand firm over time.`,
+      keyPlacements: [
+        {
+          planet: "Jupiter",
+          sign: jupiter.sign,
+          house: jupiter.house,
+          relevance: `Acts as the great cosmic benefic for House ${jupiter.house}, magnifying career opportunities, recognition, and influential mentorship.`,
+        },
+        {
+          planet: "Saturn",
+          sign: saturn.sign,
+          house: saturn.house,
+          relevance: `Demands disciplined execution in House ${saturn.house}, rewarding patient craftsmanship and long-term stamina.`,
+        },
+        {
+          planet: "Sun",
+          sign: sun.sign,
+          house: sun.house,
+          relevance: `Illuminates your executive presence in ${sun.sign}, favoring authentic leadership and visible contributions.`,
+        },
+      ],
+      timing: `Cosmic currents show high-momentum expansion through 2026, particularly when major transits activate your ${jupiter.sign} and 10th house placements. Establish foundations now for mid-cycle breakthroughs.`,
+      cosmicAdvice: [
+        `Focus your energy on high-leverage goals rather than spreading yourself too thin.`,
+        `Cultivate strategic networks; your ${sun.sign} placement shines when collaborating with visionary allies.`,
+        `Trust your intuitive radar during contract discussions and milestone transitions.`,
+      ],
+    };
+  } else if (isLove) {
+    return {
+      summary: `In matters of love and relationships, your chart emphasizes emotional authenticity, with Venus in ${venus.sign} and Moon in ${moon.sign} guiding meaningful harmony.`,
+      interpretation: `With ${asc} rising and Venus placed in ${venus.sign} in House ${venus.house}, your romantic journey values heartfelt reciprocity and open-hearted communication. Moon in ${moon.sign} in House ${moon.house} indicates that emotional safety and mutual respect are essential before you give your full trust. Current astrological configurations suggest past emotional lessons are crystallizing into profound relational clarity.`,
+      keyPlacements: [
+        {
+          planet: "Venus",
+          sign: venus.sign,
+          house: venus.house,
+          relevance: `Fosters romantic magnetism, emotional grace, and relationship harmony in House ${venus.house}.`,
+        },
+        {
+          planet: "Moon",
+          sign: moon.sign,
+          house: moon.house,
+          relevance: `Anchors your inner subconscious needs in ${moon.sign}, clarifying what brings true security and warmth.`,
+        },
+        {
+          planet: "Mars",
+          sign: mars.sign,
+          house: mars.house,
+          relevance: `Supplies passion and healthy boundary-setting in ${mars.sign}, protecting your emotional energy.`,
+        },
+      ],
+      timing: `Favorable Venusian currents are opening windows for heart-centered conversations, deepening commitments, and emotional synchronicity.`,
+      cosmicAdvice: [
+        `Express your feelings openly and directly; clarity invites reciprocated vulnerability.`,
+        `Uphold personal boundaries—a healthy partnership amplifies your peace.`,
+        `Allow new connections or existing bonds to evolve at an unhurried, natural tempo.`,
+      ],
+    };
+  } else if (isHealth) {
+    return {
+      summary: `Your chart highlights rejuvenation and somatic balance as priorities, anchored by Sun in ${sun.sign} and Mars in ${mars.sign}.`,
+      interpretation: `With ${asc} rising, your physical constitution is intimately tied to your mental surroundings. Mars in ${mars.sign} in House ${mars.house} grants potent regenerative vigor, but urges moderation against prolonged stress. Moon in ${moon.sign} reveals that restorative sleep, mindfulness, and grounding rituals are direct prerequisites for your vitality.`,
+      keyPlacements: [
+        {
+          planet: "Sun",
+          sign: sun.sign,
+          house: sun.house,
+          relevance: `Fuels your core vitality, immunological rhythm, and life force in ${sun.sign}.`,
+        },
+        {
+          planet: "Mars",
+          sign: mars.sign,
+          house: mars.house,
+          relevance: `Drives physical stamina and motivation in House ${mars.house}.`,
+        },
+        {
+          planet: "Moon",
+          sign: moon.sign,
+          house: moon.house,
+          relevance: `Influences your internal biorhythms, nervous system recharge, and emotional balance.`,
+        },
+      ],
+      timing: `The celestial sky calls for conscious pacing and restorative practices over relentless hustle.`,
+      cosmicAdvice: [
+        `Incorporate daily grounding rituals to settle active ${sun.sign} mental energy.`,
+        `Prioritize restorative sleep and hydration to keep physical channels fluid and calm.`,
+        `Heed early somatic whispers before your body is forced to demand rest.`,
+      ],
+    };
+  } else {
+    return {
+      summary: `Your natal chart indicates an inspiring chapter of personal alignment and cosmic clarity unfolding for ${querentName}.`,
+      interpretation: `Examining your inquiry through your ${asc} Ascendant and ${sun.sign} Sun reveals a powerful awakening of self-trust. Mercury in ${mercury.sign} in House ${mercury.house} provides sharp discernment and perspective, while Jupiter in ${jupiter.sign} in House ${jupiter.house} offers cosmic protection. Aligning your day-to-day choices with your authentic core values will generate immediate peace and progress.`,
+      keyPlacements: [
+        {
+          planet: "Sun",
+          sign: sun.sign,
+          house: sun.house,
+          relevance: `Anchors your essential identity, purposeful direction, and creative spark in ${sun.sign}.`,
+        },
+        {
+          planet: "Jupiter",
+          sign: jupiter.sign,
+          house: jupiter.house,
+          relevance: `Bestows expansive wisdom, fortunate synchronicity, and higher guidance in House ${jupiter.house}.`,
+        },
+        {
+          planet: "Mercury",
+          sign: mercury.sign,
+          house: mercury.house,
+          relevance: `Sharpens analytical clarity, decision-making, and communication in ${mercury.sign}.`,
+        },
+      ],
+      timing: `Planetary transits are aligning in your favor. Trust the unfolding timing and take intentional steps toward what truly resonates with your spirit.`,
+      cosmicAdvice: [
+        `Lead with authentic conviction; what is meant for you will not pass you by.`,
+        `Note down your intuitive impressions; they hold practical wisdom for your upcoming path.`,
+        `Acknowledge your past growth as the steady foundation for this next phase.`,
+      ],
+    };
+  }
+}
+
 const Report = ({ r }: { r: Rec }) => (
   <div className={card + " space-y-3"}>
     <div className="flex items-center justify-between border-b border-[#2E2752] pb-2">
@@ -89,6 +241,15 @@ const Report = ({ r }: { r: Rec }) => (
       <div className="text-xs text-[#A59FC8]">Question</div>
       <p className="italic text-[#EDE9FA]">"{r.q}"</p>
     </div>
+    {r.answer && (
+      <div className="rounded-xl bg-[#241D42] p-3 text-xs space-y-2 border border-[#E8B86B]/30">
+        <div className="font-semibold text-[#E8B86B] flex items-center gap-1.5">
+          <span>✨</span> Astrological Reading:
+        </div>
+        <p className="text-[#EDE9FA] font-medium">{r.answer.summary}</p>
+        <p className="text-[#D6D1EE] leading-relaxed">{r.answer.interpretation}</p>
+      </div>
+    )}
     <div className="rounded-xl bg-[#241D42] p-3 text-sm">
       <div className="font-semibold text-[#E8B86B]">Ascendant (Rising Sign): {r.chart.asc}</div>
       <div className="mt-2 space-y-1 text-xs text-[#D6D1EE]">
@@ -139,6 +300,8 @@ export default function App() {
   const [sub, setSub] = useState(false);
   const [hist, setHist] = useState<Rec[]>([]);
   const [cur, setCur] = useState<Rec | null>(null);
+  const [currentAnswer, setCurrentAnswer] = useState<AstrologicalAnswer | null>(null);
+  const [analyzing, setAnalyzing] = useState(false);
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
   const [ok, setOk] = useState(true);
@@ -684,14 +847,33 @@ export default function App() {
 
   function ask() {
     if (!chart) return;
-    const r: Rec = { q, name: f.name, at: new Date().toLocaleDateString(), chart };
-    const h = [r, ...hist];
-    setHist(h);
-    try {
-      localStorage.setItem("hist", JSON.stringify(h));
-    } catch {}
-    setCur(r);
-    setStep(sub ? "report" : "locked");
+    if (!q.trim()) return;
+
+    // If user is not subscribed, navigate to subscription page as requested
+    if (!sub) {
+      setTab("Plans");
+      return;
+    }
+
+    setAnalyzing(true);
+    setTimeout(() => {
+      const reading = generateAstrologicalAnswer(q, f.name || "Querent", chart);
+      const r: Rec = {
+        q,
+        name: f.name || "Querent",
+        at: new Date().toLocaleDateString(),
+        chart,
+        answer: reading,
+      };
+      const h = [r, ...hist];
+      setHist(h);
+      try {
+        localStorage.setItem("hist", JSON.stringify(h));
+      } catch {}
+      setCur(r);
+      setCurrentAnswer(reading);
+      setAnalyzing(false);
+    }, 450);
   }
 
   function subscribe() {
@@ -699,7 +881,7 @@ export default function App() {
     try {
       localStorage.setItem("sub", "1");
     } catch {}
-    if (step === "locked") setStep("report");
+    if (step === "locked") setStep("ask");
     setTab("Home");
   }
 
@@ -1401,17 +1583,17 @@ export default function App() {
           </div>
         )}
 
-        {/* STEP: ASK QUESTION / BIRTH CHART PAGE */}
+        {/* STEP: ASK QUESTION PAGE */}
         {tab === "Home" && step === "ask" && (
           <div className="space-y-4 animate-in fade-in duration-200">
-            {/* Birth Chart Overview Card */}
-            <div className={card + " border-[#E8B86B]/60 bg-gradient-to-r from-[#211A3D] to-[#2E204B] space-y-3"}>
-              <div className="flex items-start justify-between">
+            {/* Querent Overview Header (Chart removed from this page as requested) */}
+            <div className={card + " border-[#E8B86B]/40 bg-gradient-to-r from-[#211A3D] to-[#2E204B] p-3.5 space-y-2"}>
+              <div className="flex items-center justify-between">
                 <div>
-                  <div className="text-xs uppercase tracking-wider text-[#E8B86B] font-semibold flex items-center gap-1.5">
-                    <span>✨</span> Natal Birth Chart Ready
+                  <div className="text-[11px] uppercase tracking-wider text-[#E8B86B] font-semibold flex items-center gap-1.5">
+                    <span>✨</span> Birth Chart Ready
                   </div>
-                  <div className="font-bold text-lg text-[#EDE9FA] mt-0.5">{f.name || "Querent"}</div>
+                  <div className="font-bold text-base text-[#EDE9FA]">{f.name || "Querent"}</div>
                 </div>
                 <button
                   type="button"
@@ -1419,8 +1601,9 @@ export default function App() {
                     setStep("form");
                     setFormStep(0);
                     setQ("");
+                    setCurrentAnswer(null);
                   }}
-                  className="text-xs text-[#E8B86B] hover:text-[#FFE2A4] underline cursor-pointer"
+                  className="text-xs text-[#E8B86B] hover:text-[#FFE2A4] underline cursor-pointer shrink-0"
                   title="Calculate chart for another person"
                 >
                   + New Chart
@@ -1428,41 +1611,11 @@ export default function App() {
               </div>
 
               {(f.date || f.place) && (
-                <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-[#A59FC8] pt-0.5 border-t border-[#3E346B]/40">
-                  {f.date && <span>📅 Born: <strong className="text-[#EDE9FA]">{f.date}</strong>{f.time ? ` at ${f.time}` : ""}</span>}
+                <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-[#A59FC8] pt-1.5 border-t border-[#3E346B]/40">
+                  {f.date && <span>📅 Born: <strong className="text-[#EDE9FA]">{f.date}</strong>{f.time ? ` (${f.time})` : ""}</span>}
                   {f.place && <span>📍 <strong className="text-[#EDE9FA]">{f.place}</strong></span>}
                 </div>
               )}
-
-              <div className="rounded-xl bg-[#241D42]/90 p-3 text-sm border border-[#3E346B]/60 space-y-2.5">
-                <div className="flex justify-between items-center font-semibold text-[#E8B86B]">
-                  <span>Ascendant (Rising Sign):</span>
-                  <span className="text-base font-bold">{chart?.asc}</span>
-                </div>
-
-                {chart?.planets && chart.planets.length > 0 && (
-                  <div className="space-y-1.5 pt-2 border-t border-[#2E2752]">
-                    <div className="text-[11px] font-semibold text-[#A59FC8] uppercase tracking-wider">
-                      Planetary Positions &amp; Houses
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                      {chart.planets.map(p => (
-                        <div key={p.name} className="flex justify-between items-center bg-[#1A1433] px-2.5 py-1.5 rounded-lg border border-[#2E2752]/60 text-xs">
-                          <span className="font-semibold text-[#EDE9FA]">{p.name}</span>
-                          <span className="text-[#A59FC8]">{p.sign} {p.deg.toFixed(1)}° · House {p.house}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {chart?.aspects && chart.aspects.length > 0 && (
-                  <div className="pt-2 border-t border-[#2E2752] text-xs text-[#A59FC8]">
-                    <span className="text-[#E8B86B] font-medium">Aspects: </span>
-                    <span className="text-[#EDE9FA]">{chart.aspects.join(", ")}</span>
-                  </div>
-                )}
-              </div>
             </div>
 
             <div className="space-y-1">
@@ -1479,13 +1632,146 @@ export default function App() {
               placeholder="e.g. What does my natal chart say about career growth in 2026?"
             />
 
+            {/* Subscription banner if user is not yet subscribed */}
+            {!sub && (
+              <div className="rounded-xl border border-[#E8B86B]/30 bg-[#251A3A] p-3 text-xs flex items-center justify-between gap-3 text-[#EDE9FA]">
+                <div className="flex items-center gap-2">
+                  <span className="text-base">🔒</span>
+                  <span>
+                    <strong className="text-[#E8B86B]">Subscription required:</strong> A membership plan is needed to view answers.
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setTab("Plans")}
+                  className="shrink-0 px-2.5 py-1 rounded-lg bg-[#E8B86B] text-[#1A1230] font-semibold text-xs hover:bg-[#FFE2A4] transition-colors cursor-pointer"
+                >
+                  View Plans →
+                </button>
+              </div>
+            )}
+
             <button
               className={btn}
-              disabled={!q.trim()}
+              disabled={!q.trim() || analyzing}
               onClick={ask}
             >
-              Analyze Chart &amp; Question →
+              {analyzing ? (
+                <span className="flex items-center gap-2">
+                  <svg className="h-5 w-5 animate-spin text-[#1A1230]" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                  </svg>
+                  Consulting the Stars…
+                </span>
+              ) : sub ? (
+                "Analyze Chart & Question →"
+              ) : (
+                "Analyze Chart & Question (View Plans) →"
+              )}
             </button>
+
+            {/* ANSWER DISPLAY (Shown below the question when subscribed) */}
+            {sub && currentAnswer && (
+              <div className="space-y-4 pt-2 animate-in fade-in slide-in-from-top-2 duration-300">
+                <div className={card + " border-[#E8B86B]/60 bg-gradient-to-b from-[#211A3D] to-[#1A1533] space-y-4 shadow-xl"}>
+                  {/* Header */}
+                  <div className="flex items-center justify-between border-b border-[#3E346B]/60 pb-3">
+                    <div className="flex items-center gap-2">
+                      <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#E8B86B]/20 text-sm text-[#E8B86B]">
+                        🔮
+                      </span>
+                      <div>
+                        <div className="text-xs uppercase tracking-wider text-[#E8B86B] font-bold">
+                          Astrological Reading
+                        </div>
+                        <div className="text-[11px] text-[#A59FC8]">
+                          Calculated for {f.name || "Querent"}
+                        </div>
+                      </div>
+                    </div>
+                    <span className="text-[11px] text-[#A59FC8] bg-[#16102B] px-2 py-0.5 rounded-full border border-[#2E2752]">
+                      {new Date().toLocaleDateString()}
+                    </span>
+                  </div>
+
+                  {/* Querent question recap */}
+                  <div className="bg-[#150F28] p-3 rounded-xl border border-[#2E2752] text-xs">
+                    <span className="text-[#A59FC8] font-medium block mb-0.5">Your Question:</span>
+                    <span className="italic text-[#EDE9FA] font-medium">"{q}"</span>
+                  </div>
+
+                  {/* Summary / Core Answer */}
+                  <div className="space-y-1.5">
+                    <div className="text-xs font-bold uppercase tracking-wider text-[#E8B86B] flex items-center gap-1.5">
+                      <span>✨</span> Cosmic Synthesis
+                    </div>
+                    <div className="text-sm font-semibold text-[#EDE9FA] leading-snug">
+                      {currentAnswer.summary}
+                    </div>
+                    <p className="text-xs text-[#D6D1EE] leading-relaxed pt-1">
+                      {currentAnswer.interpretation}
+                    </p>
+                  </div>
+
+                  {/* Key Planetary Influences */}
+                  <div className="space-y-2 pt-1 border-t border-[#3E346B]/40">
+                    <div className="text-[11px] font-bold uppercase tracking-wider text-[#A59FC8]">
+                      Key Planetary Placements For Your Query
+                    </div>
+                    <div className="grid grid-cols-1 gap-2">
+                      {currentAnswer.keyPlacements.map((p, idx) => (
+                        <div key={idx} className="bg-[#1A1433] p-2.5 rounded-xl border border-[#2E2752] text-xs space-y-1">
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-[#E8B86B]">{p.planet} in {p.sign}</span>
+                            <span className="text-[11px] text-[#A59FC8] bg-[#241D42] px-2 py-0.5 rounded-md">House {p.house}</span>
+                          </div>
+                          <p className="text-[11px] text-[#D6D1EE] leading-relaxed">{p.relevance}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Timing & Guidance */}
+                  <div className="bg-[#241D42]/70 p-3 rounded-xl border border-[#3E346B]/50 space-y-2 text-xs">
+                    <div className="font-semibold text-[#E8B86B] flex items-center gap-1.5">
+                      <span>⏳</span> Favorable Cycles &amp; Timing
+                    </div>
+                    <p className="text-[#EDE9FA] leading-relaxed text-[11px]">
+                      {currentAnswer.timing}
+                    </p>
+                  </div>
+
+                  {/* Actionable Advice */}
+                  <div className="space-y-1.5 pt-1 border-t border-[#3E346B]/40 text-xs">
+                    <div className="text-[11px] font-bold uppercase tracking-wider text-[#A59FC8]">
+                      Celestial Guidance &amp; Takeaways
+                    </div>
+                    <ul className="space-y-1.5 text-xs text-[#D6D1EE]">
+                      {currentAnswer.cosmicAdvice.map((adv, idx) => (
+                        <li key={idx} className="flex items-start gap-2">
+                          <span className="text-[#E8B86B] mt-0.5">✦</span>
+                          <span>{adv}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  <div className="flex justify-between items-center pt-2 border-t border-[#2E2752] text-[11px] text-[#7C75A3]">
+                    <span>High-precision planetary ephemeris analysis</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        window.scrollTo({ top: 0, behavior: "smooth" });
+                      }}
+                      className="text-[#E8B86B] hover:underline cursor-pointer"
+                    >
+                      Ask another question ↑
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
