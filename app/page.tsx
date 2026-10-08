@@ -324,7 +324,6 @@ export default function App() {
     isDemo?: boolean;
   } | null>(null);
   const [selectedUpiApp, setSelectedUpiApp] = useState<string>("gpay");
-  const [simulatedUpiPin, setSimulatedUpiPin] = useState<string>("");
   const [pinSubmitting, setPinSubmitting] = useState(false);
   const [hist, setHist] = useState<Rec[]>([]);
 
@@ -2544,23 +2543,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* UPI PIN entry simulation */}
-            <div className="space-y-1.5 pt-1">
-              <label className="text-[11px] font-semibold text-[#EDE9FA] flex justify-between">
-                <span>Authorize with UPI PIN:</span>
-                <span className="text-[10px] text-[#7C75A3]">Test PIN: 1234</span>
-              </label>
-              <div className="relative">
-                <input
-                  type="password"
-                  maxLength={6}
-                  placeholder="••••"
-                  className={inp + " text-center tracking-[0.5em] font-mono text-base py-2 min-h-10"}
-                  value={simulatedUpiPin}
-                  onChange={e => setSimulatedUpiPin(e.target.value.replace(/\D/g, ""))}
-                />
-              </div>
-            </div>
 
             {/* Actions */}
             <div className="space-y-2 pt-1">
