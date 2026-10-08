@@ -127,6 +127,29 @@ export async function googleAuthUser(params: GoogleAuthParams): Promise<SignUpRe
   return data;
 }
 
+export interface UploadPhotoResult {
+  success: boolean;
+  message?: string;
+  photoUrl: string;
+  key?: string;
+  bucket?: string;
+  folder?: string;
+}
+
+export async function uploadUserPhoto(photoData: string, email?: string): Promise<UploadPhotoResult> {
+  const endpoint = `${BASE_URL}/api/users/upload-photo`;
+  const res = await fetch(endpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ photo: photoData, email }),
+  });
+  const data = await res.json();
+  if (!res.ok || data.error) {
+    throw new Error(data.error || "Could not upload photograph");
+  }
+  return data;
+}
+
 export async function fetchBirthChart(params: {
   date: string;
   time: string;
