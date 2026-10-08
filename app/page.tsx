@@ -121,6 +121,7 @@ export default function App() {
   const [googleAuthBday, setGoogleAuthBday] = useState("");
   const [showClientIdModal, setShowClientIdModal] = useState(false);
   const [customClientId, setCustomClientId] = useState("");
+  const [directEmail, setDirectEmail] = useState("");
   const [googleLoading, setGoogleLoading] = useState(false);
   const tokenClientRef = useRef<any>(null);
 
@@ -306,11 +307,22 @@ export default function App() {
   useEffect(() => {
     try {
       setSub(localStorage.getItem("sub") === "1");
-      setHist(JSON.parse(localStorage.getItem("hist") || "[]"));
+      const savedHist = JSON.parse(localStorage.getItem("hist") || "[]");
+      setHist(savedHist);
+      const savedProfile = JSON.parse(localStorage.getItem("user_profile") || "null");
+      if (savedProfile) {
+        if (savedProfile.email) setF(prev => ({ ...prev, email: savedProfile.email }));
+        if (savedProfile.name) setF(prev => ({ ...prev, name: savedProfile.name }));
+        if (savedProfile.dob) setF(prev => ({ ...prev, date: savedProfile.dob }));
+        if (savedProfile.birthTime) setF(prev => ({ ...prev, time: savedProfile.birthTime }));
+        if (savedProfile.birthPlace) setF(prev => ({ ...prev, place: savedProfile.birthPlace }));
+        if (savedProfile.photoUrl) setPhotoUrl(savedProfile.photoUrl);
+        if (savedProfile.isGoogle) setIsGoogleLogin(true);
+      }
     } catch {}
     navigator.serviceWorker?.register("/sw.js").catch(() => {});
 
-    // Check Express API server connectivity
+    // Check Express API server connectivity in background
     checkServerHealth().then(res => setServerOnline(!!res));
 
     // Load Google Identity Services dynamically
@@ -509,20 +521,18 @@ export default function App() {
       setGoogleAuthBday(cleanBday);
     }
 
-    // Do NOT autopopulate date from Google Auth on the fourth page
     setF(prev => ({
       ...prev,
       email: cleanEmail,
       name: cleanName,
     }));
 
-    // Do NOT set photoUrl from Google Auth - user takes real photo via physical camera on third page
     setIsGoogleLogin(true);
     setShowClientIdModal(false);
 
-    // Call backend API immediately so user name and googleAuthBday are stored in MongoDB
+    // Call backend API to authenticate/sync user with MongoDB
     try {
-      await googleAuthUser({
+      const res = await googleAuthUser({
         credential: params.credential,
         email: cleanEmail,
         name: cleanName,
@@ -532,11 +542,99 @@ export default function App() {
         birthPlace: f.place.trim() || undefined,
         googleAuthBday: cleanBday || googleAuthBday || undefined,
       });
+
+      // Check if user is an existing user with birth chart data
+      const existingUser = res?.user;
+      const userDob = existingUser?.dob || f.date.trim();
+      const userPlace = existingUser?.birthPlace || f.place.trim();
+      const userTime = existingUser?.birthTime || f.time.trim() || "12:00";
+      const userName = existingUser?.name || cleanName;
+      const userPhoto = existingUser?.photoUrl || photoUrl;
+
+      if (existingUser?.isPremium || existingUser?.subscriptionStatus === "premium") {
+        setSub(true);
+        try { localStorage.setItem("sub", "1"); } catch {}
+      }
+
+      if (userPhoto) {
+        setPhotoUrl(userPhoto);
+      }
+
+      setF({
+        name: userName,
+        email: cleanEmail,
+        date: userDob,
+        time: userTime,
+        place: userPlace,
+      });
+
+      try {
+        localStorage.setItem("user_profile", JSON.stringify({
+          email: cleanEmail,
+          name: userName,
+          dob: userDob,
+          birthTime: userTime,
+          birthPlace: userPlace,
+          photoUrl: userPhoto,
+          isGoogle: true
+        }));
+      } catch {}
+
+      // If existing user already has DOB and Birth Place: automatically fetch chart and directly go to chart page!
+      if (userDob && userPlace) {
+        setBusy(true);
+        try {
+          const g = await fetchGeoLocation(userPlace);
+          setGeo(g);
+          const c = await fetchBirthChart({
+            date: userDob,
+            time: userTime,
+            lat: g.lat,
+            lon: g.lon,
+            name: userName,
+            email: cleanEmail,
+            place: userPlace,
+          });
+          setChart(c);
+          setCur({
+            q: "Natal Birth Chart Analysis",
+            name: userName,
+            at: new Date().toLocaleDateString(),
+            chart: c,
+          });
+          setStep("ask");
+          setTab("Home");
+          return;
+        } catch (chartErr) {
+          console.warn("Auto-generating chart for existing user error:", chartErr);
+          setFormStep(5);
+          return;
+        } finally {
+          setBusy(false);
+        }
+      }
+
+      // Fallback: Check local history for previously calculated chart
+      const savedHistStr = typeof window !== "undefined" ? localStorage.getItem("hist") : null;
+      if (savedHistStr) {
+        try {
+          const savedHist = JSON.parse(savedHistStr);
+          if (Array.isArray(savedHist) && savedHist.length > 0 && savedHist[0].chart) {
+            const lastReport = savedHist[0];
+            setChart(lastReport.chart);
+            setCur(lastReport);
+            if (lastReport.name) setF(prev => ({ ...prev, name: lastReport.name }));
+            setStep("ask");
+            setTab("Home");
+            return;
+          }
+        } catch {}
+      }
     } catch (apiErr) {
       console.warn("Backend Google Auth sync warning:", apiErr);
     }
 
-    // Advance to photo step smoothly
+    // New user without birth details yet: advance smoothly to photo/birthdate step
     setFormStep(2);
   };
 
@@ -622,41 +720,85 @@ export default function App() {
     <div className="mx-auto flex min-h-dvh max-w-md flex-col px-5 pt-[calc(env(safe-area-inset-top)+20px)]">
       <main className="flex-1 space-y-5 pb-28">
         {/* App Top Bar */}
-        <header className="flex items-center justify-between py-2 border-b border-[#2E2752]/60">
+        <header className="flex items-center justify-between py-2 border-b border-[#2E2752]/60 gap-2">
           <div className="flex items-center gap-2">
-            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-tr from-[#E8B86B] to-[#FFE2A4] text-sm text-[#1A1230] font-bold shadow-md shadow-[#E8B86B]/20">
+            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-tr from-[#E8B86B] to-[#FFE2A4] text-sm text-[#1A1230] font-bold shadow-md shadow-[#E8B86B]/20 shrink-0">
               ✨
             </span>
             <div className="flex flex-col leading-tight">
               <span className="font-bold tracking-wide text-sm sm:text-base text-[#EDE9FA]">Astrology App</span>
               <span className="text-[10px] text-[#A59FC8]">Astro Reports</span>
             </div>
-            {serverOnline !== null && (
-              <span
-                className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium border transition-colors ${
-                  serverOnline
-                    ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
-                    : "bg-amber-500/10 text-amber-300 border-amber-500/30"
-                }`}
-                title={`Backend: ${BACKEND_URL} (${serverOnline ? "Connected" : "Offline"})`}
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            {/* Google Sign In / Account Action Button */}
+            {!isGoogleLogin ? (
+              <button
+                type="button"
+                onClick={triggerGoogleSignIn}
+                disabled={googleLoading || busy}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full text-xs font-semibold bg-[#201A3D] hover:bg-[#2C2454] border border-[#443875] hover:border-[#E8B86B]/60 text-[#EDE9FA] transition-all cursor-pointer shadow-sm active:scale-95 disabled:opacity-60"
+                title="Sign in with Google to access your birth chart directly"
               >
-                <span className={`h-1.5 w-1.5 rounded-full ${serverOnline ? "bg-emerald-400 animate-pulse" : "bg-amber-400"}`} />
-                {serverOnline ? "API Live" : "API Offline"}
+                {googleLoading || busy ? (
+                  <>
+                    <svg className="animate-spin h-3.5 w-3.5 text-[#E8B86B]" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                    </svg>
+                    <span className="text-[11px]">Loading...</span>
+                  </>
+                ) : (
+                  <>
+                    <svg className="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24">
+                      <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                      <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                      <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+                      <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
+                    </svg>
+                    <span>Sign in with Google</span>
+                  </>
+                )}
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  if (chart) {
+                    setStep("ask");
+                    setTab("Home");
+                  } else {
+                    setTab("Profile");
+                  }
+                }}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-[#201A3D] hover:bg-[#2C2454] border border-[#443875] text-[#EDE9FA] transition-colors cursor-pointer"
+                title={chart ? "View your birth chart" : "View profile"}
+              >
+                {photoUrl ? (
+                  <img src={photoUrl} alt="User" className="h-4 w-4 rounded-full object-cover border border-[#E8B86B]" />
+                ) : (
+                  <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                )}
+                <span className="truncate max-w-[80px] text-[11px] font-medium">
+                  {chart ? "Chart Ready" : (f.name ? f.name.split(" ")[0] : "Account")}
+                </span>
+              </button>
+            )}
+
+            {sub ? (
+              <span className="rounded-full bg-[#E8B86B]/20 px-2.5 py-0.5 text-xs font-medium text-[#E8B86B] border border-[#E8B86B]/30">
+                Premium
               </span>
+            ) : (
+              <button
+                onClick={() => setTab("Plans")}
+                className="text-xs text-[#E8B86B] hover:underline cursor-pointer"
+              >
+                Upgrade
+              </button>
             )}
           </div>
-          {sub ? (
-            <span className="rounded-full bg-[#E8B86B]/20 px-2.5 py-0.5 text-xs font-medium text-[#E8B86B] border border-[#E8B86B]/30">
-              Premium
-            </span>
-          ) : (
-            <button
-              onClick={() => setTab("Plans")}
-              className="text-xs text-[#E8B86B] hover:underline cursor-pointer"
-            >
-              Upgrade
-            </button>
-          )}
         </header>
 
         {/* Home Page Title Section */}
@@ -764,6 +906,18 @@ export default function App() {
                 >
                   Continue →
                 </button>
+
+                <div className="pt-2 text-center">
+                  <button
+                    type="button"
+                    onClick={triggerGoogleSignIn}
+                    disabled={googleLoading || busy}
+                    className="inline-flex items-center gap-1.5 text-xs text-[#A59FC8] hover:text-[#E8B86B] transition-colors cursor-pointer"
+                  >
+                    <span>Existing user?</span>
+                    <span className="font-semibold underline">Sign in with Google to load chart →</span>
+                  </button>
+                </div>
               </section>
             )}
 
@@ -1247,20 +1401,73 @@ export default function App() {
           </div>
         )}
 
-        {/* STEP: ASK QUESTION */}
+        {/* STEP: ASK QUESTION / BIRTH CHART PAGE */}
         {tab === "Home" && step === "ask" && (
           <div className="space-y-4 animate-in fade-in duration-200">
-            <div className={card + " border-[#E8B86B] bg-gradient-to-r from-[#211A3D] to-[#2E204B]"}>
-              <div className="text-xs uppercase tracking-wider text-[#E8B86B]">Birth Chart Ready</div>
-              <div className="font-semibold text-lg text-[#EDE9FA]">{f.name}</div>
-              <div className="text-sm text-[#A59FC8] mt-1">
-                Ascendant: <strong className="text-[#E8B86B]">{chart?.asc}</strong>
+            {/* Birth Chart Overview Card */}
+            <div className={card + " border-[#E8B86B]/60 bg-gradient-to-r from-[#211A3D] to-[#2E204B] space-y-3"}>
+              <div className="flex items-start justify-between">
+                <div>
+                  <div className="text-xs uppercase tracking-wider text-[#E8B86B] font-semibold flex items-center gap-1.5">
+                    <span>✨</span> Natal Birth Chart Ready
+                  </div>
+                  <div className="font-bold text-lg text-[#EDE9FA] mt-0.5">{f.name || "Querent"}</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStep("form");
+                    setFormStep(0);
+                    setQ("");
+                  }}
+                  className="text-xs text-[#E8B86B] hover:text-[#FFE2A4] underline cursor-pointer"
+                  title="Calculate chart for another person"
+                >
+                  + New Chart
+                </button>
+              </div>
+
+              {(f.date || f.place) && (
+                <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-[#A59FC8] pt-0.5 border-t border-[#3E346B]/40">
+                  {f.date && <span>📅 Born: <strong className="text-[#EDE9FA]">{f.date}</strong>{f.time ? ` at ${f.time}` : ""}</span>}
+                  {f.place && <span>📍 <strong className="text-[#EDE9FA]">{f.place}</strong></span>}
+                </div>
+              )}
+
+              <div className="rounded-xl bg-[#241D42]/90 p-3 text-sm border border-[#3E346B]/60 space-y-2.5">
+                <div className="flex justify-between items-center font-semibold text-[#E8B86B]">
+                  <span>Ascendant (Rising Sign):</span>
+                  <span className="text-base font-bold">{chart?.asc}</span>
+                </div>
+
+                {chart?.planets && chart.planets.length > 0 && (
+                  <div className="space-y-1.5 pt-2 border-t border-[#2E2752]">
+                    <div className="text-[11px] font-semibold text-[#A59FC8] uppercase tracking-wider">
+                      Planetary Positions &amp; Houses
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                      {chart.planets.map(p => (
+                        <div key={p.name} className="flex justify-between items-center bg-[#1A1433] px-2.5 py-1.5 rounded-lg border border-[#2E2752]/60 text-xs">
+                          <span className="font-semibold text-[#EDE9FA]">{p.name}</span>
+                          <span className="text-[#A59FC8]">{p.sign} {p.deg.toFixed(1)}° · House {p.house}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {chart?.aspects && chart.aspects.length > 0 && (
+                  <div className="pt-2 border-t border-[#2E2752] text-xs text-[#A59FC8]">
+                    <span className="text-[#E8B86B] font-medium">Aspects: </span>
+                    <span className="text-[#EDE9FA]">{chart.aspects.join(", ")}</span>
+                  </div>
+                )}
               </div>
             </div>
 
             <div className="space-y-1">
-              <h1 className="text-2xl font-bold tracking-tight text-[#EDE9FA]">Ask your question</h1>
-              <p className="text-sm text-[#A59FC8]">
+              <h2 className="text-xl font-bold tracking-tight text-[#EDE9FA]">Ask your question</h2>
+              <p className="text-xs sm:text-sm text-[#A59FC8]">
                 What insights, career directions, or relationship alignments would you like to explore?
               </p>
             </div>
@@ -1277,7 +1484,7 @@ export default function App() {
               disabled={!q.trim()}
               onClick={ask}
             >
-              Analyze Chart & Question →
+              Analyze Chart &amp; Question →
             </button>
           </div>
         )}
@@ -1565,6 +1772,32 @@ export default function App() {
                 >
                   Cancel
                 </button>
+              </div>
+
+              {/* Dev/Local Sign In Fallback */}
+              <div className="pt-2 border-t border-[#2E2752] space-y-2">
+                <div className="text-[11px] text-[#A59FC8]">
+                  Or directly look up an existing account by email:
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    type="email"
+                    placeholder="e.g. user@example.com"
+                    className={inp + " min-h-9 text-xs py-1.5 flex-1"}
+                    value={directEmail}
+                    onChange={e => setDirectEmail(e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    disabled={!directEmail.includes("@")}
+                    onClick={() => {
+                      handleGoogleAuth({ email: directEmail });
+                    }}
+                    className="rounded-xl bg-[#3E346B] hover:bg-[#52458C] text-[#EDE9FA] px-3 text-xs font-semibold cursor-pointer disabled:opacity-50"
+                  >
+                    Go →
+                  </button>
+                </div>
               </div>
 
               <div className="text-[11px] text-[#7C75A3] bg-[#150F2B] p-2.5 rounded-xl border border-[#2E2752] space-y-1">
