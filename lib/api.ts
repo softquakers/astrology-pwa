@@ -193,3 +193,112 @@ export async function fetchDailyHoroscope(sign: string): Promise<HoroscopeResult
     return null;
   }
 }
+
+export interface SubscriptionPlanItem {
+  id: "monthly" | "three_month";
+  name: string;
+  tagline: string;
+  amount: number;
+  intervals: number;
+  intervalType: string;
+  badge?: string;
+  savings?: string;
+  perMonthText: string;
+  features: string[];
+}
+
+export interface PlansResponse {
+  success: boolean;
+  plans: SubscriptionPlanItem[];
+  gateway: {
+    provider: string;
+    method: string;
+    env: string;
+    isConfigured: boolean;
+  };
+}
+
+export async function fetchSubscriptionPlans(): Promise<PlansResponse | null> {
+  try {
+    const endpoint = `${BASE_URL}/api/subscriptions/plans`;
+    const res = await fetch(endpoint);
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+export interface CreateSubscriptionParams {
+  planId: "monthly" | "three_month";
+  email: string;
+  name?: string;
+  phone?: string;
+  returnUrl?: string;
+}
+
+export interface CreateSubscriptionResponse {
+  success: boolean;
+  subscriptionId: string;
+  authLink: string;
+  sessionId?: string;
+  plan: SubscriptionPlanItem;
+  isDemo: boolean;
+  message?: string;
+  error?: string;
+}
+
+export async function createCashfreeSubscription(
+  params: CreateSubscriptionParams
+): Promise<CreateSubscriptionResponse> {
+  const endpoint = `${BASE_URL}/api/subscriptions/create`;
+  const res = await fetch(endpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+  });
+  const data = await res.json();
+  if (!res.ok || data.error) {
+    throw new Error(data.error || "Failed to initialize UPI AutoPay mandate");
+  }
+  return data;
+}
+
+export interface VerifySubscriptionResult {
+  success: boolean;
+  status: string;
+  isPremium: boolean;
+  subscriptionPlan: string;
+  user?: any;
+  subscription?: any;
+  error?: string;
+}
+
+export async function verifyCashfreeSubscription(params: {
+  subscriptionId: string;
+  email?: string;
+}): Promise<VerifySubscriptionResult> {
+  const endpoint = `${BASE_URL}/api/subscriptions/verify`;
+  const res = await fetch(endpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+  });
+  const data = await res.json();
+  if (!res.ok || data.error) {
+    throw new Error(data.error || "Failed to verify UPI AutoPay mandate");
+  }
+  return data;
+}
+
+export async function checkCashfreeSubscriptionStatus(
+  subscriptionId: string
+): Promise<any> {
+  const endpoint = `${BASE_URL}/api/subscriptions/status/${encodeURIComponent(
+    subscriptionId
+  )}`;
+  const res = await fetch(endpoint);
+  if (!res.ok) return null;
+  return await res.json();
+}
+

@@ -1,6 +1,16 @@
 "use client";
 import { useEffect, useState, useRef } from "react";
-import { fetchGeoLocation, fetchBirthChart, checkServerHealth, signUpUser, googleAuthUser, BACKEND_URL } from "../lib/api";
+import {
+  fetchGeoLocation,
+  fetchBirthChart,
+  checkServerHealth,
+  signUpUser,
+  googleAuthUser,
+  createCashfreeSubscription,
+  verifyCashfreeSubscription,
+  BACKEND_URL,
+} from "../lib/api";
+
 
 declare global {
   interface Window {
@@ -298,7 +308,26 @@ export default function App() {
   const [chart, setChart] = useState<Chart | null>(null);
   const [q, setQ] = useState("");
   const [sub, setSub] = useState(false);
+
+  const [subPlan, setSubPlan] = useState<"monthly" | "three_month">("monthly");
+  const [subPhone, setSubPhone] = useState("");
+  const [subLoading, setSubLoading] = useState(false);
+  const [subError, setSubError] = useState("");
+  const [subSuccessMsg, setSubSuccessMsg] = useState("");
+  const [showUpiModal, setShowUpiModal] = useState(false);
+  const [pendingSubSession, setPendingSubSession] = useState<{
+    subscriptionId: string;
+    planId: "monthly" | "three_month";
+    amount: number;
+    planName: string;
+    authLink?: string;
+    isDemo?: boolean;
+  } | null>(null);
+  const [selectedUpiApp, setSelectedUpiApp] = useState<string>("gpay");
+  const [simulatedUpiPin, setSimulatedUpiPin] = useState<string>("");
+  const [pinSubmitting, setPinSubmitting] = useState(false);
   const [hist, setHist] = useState<Rec[]>([]);
+
   const [cur, setCur] = useState<Rec | null>(null);
   const [currentAnswer, setCurrentAnswer] = useState<AstrologicalAnswer | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
@@ -479,11 +508,52 @@ export default function App() {
         if (savedProfile.dob) setF(prev => ({ ...prev, date: savedProfile.dob }));
         if (savedProfile.birthTime) setF(prev => ({ ...prev, time: savedProfile.birthTime }));
         if (savedProfile.birthPlace) setF(prev => ({ ...prev, place: savedProfile.birthPlace }));
-        if (savedProfile.photoUrl) setPhotoUrl(savedProfile.photoUrl);
         if (savedProfile.isGoogle) setIsGoogleLogin(true);
+        if (savedProfile.phone) setSubPhone(savedProfile.phone);
+      }
+      const savedPlan = localStorage.getItem("sub_plan") as "monthly" | "three_month" | null;
+      if (savedPlan) setSubPlan(savedPlan);
+      const savedPhone = localStorage.getItem("sub_phone");
+      if (savedPhone) setSubPhone(savedPhone);
+
+      // Check URL query parameters for Cashfree redirect
+      if (typeof window !== "undefined") {
+        const urlParams = new URLSearchParams(window.location.search);
+        const cfSubId = urlParams.get("cf_sub_id") || urlParams.get("subscription_id");
+        const isVerify = urlParams.get("verify") === "1";
+        const isDemoAuth = urlParams.get("demo_auth") === "1";
+
+        if (cfSubId && isVerify) {
+          verifyCashfreeSubscription({ subscriptionId: cfSubId })
+            .then(res => {
+              if (res.success || res.isPremium) {
+                setSub(true);
+                setSubPlan((res.subscriptionPlan as "monthly" | "three_month") || "monthly");
+                try {
+                  localStorage.setItem("sub", "1");
+                  localStorage.setItem("sub_plan", res.subscriptionPlan || "monthly");
+                } catch {}
+                setSubSuccessMsg("🎉 Cashfree UPI AutoPay Mandate successfully activated!");
+                window.history.replaceState({}, "", "/?tab=Plans");
+              }
+            })
+            .catch(() => {});
+        } else if (isDemoAuth && cfSubId) {
+          const planParam = (urlParams.get("plan") as "monthly" | "three_month") || "monthly";
+          const amountParam = parseInt(urlParams.get("amount") || "149", 10);
+          setPendingSubSession({
+            subscriptionId: cfSubId,
+            planId: planParam,
+            amount: amountParam,
+            planName: planParam === "three_month" ? "Celestial 3-Month AutoPay" : "Celestial Monthly AutoPay",
+            isDemo: true,
+          });
+          setShowUpiModal(true);
+        }
       }
     } catch {}
     navigator.serviceWorker?.register("/sw.js").catch(() => {});
+
 
     // Check Express API server connectivity in background
     checkServerHealth().then(res => setServerOnline(!!res));
@@ -876,13 +946,98 @@ export default function App() {
     }, 450);
   }
 
-  function subscribe() {
-    setSub(true);
+  async function initiateUpiAutopay(planId: "monthly" | "three_month") {
+    setSubError("");
+    setSubLoading(true);
     try {
-      localStorage.setItem("sub", "1");
-    } catch {}
-    if (step === "locked") setStep("ask");
-    setTab("Home");
+      const email = f.email.trim() || (typeof window !== "undefined" ? localStorage.getItem("user_email") || "" : "");
+      if (!email || !email.includes("@")) {
+        setSubError("Please register your email address first so your mandate can be linked.");
+        setSubLoading(false);
+        setTab("Profile");
+        return;
+      }
+
+      if (subPhone.trim()) {
+        try { localStorage.setItem("sub_phone", subPhone.trim()); } catch {}
+      }
+
+      const res = await createCashfreeSubscription({
+        planId,
+        email,
+        name: f.name.trim() || undefined,
+        phone: subPhone.trim() || undefined,
+        returnUrl: `${window.location.origin}/?tab=Plans&verify=1`,
+      });
+
+      if (!res || !res.subscriptionId) {
+        throw new Error("Unable to create subscription session with Cashfree.");
+      }
+
+      // If live Cashfree gateway link is returned and not in simulation
+      if (!res.isDemo && res.authLink && !res.authLink.includes("demo_auth=1")) {
+        window.location.href = res.authLink;
+        return;
+      }
+
+      // Interactive UPI AutoPay mandate authorization modal
+      setPendingSubSession({
+        subscriptionId: res.subscriptionId,
+        planId,
+        amount: planId === "three_month" ? 299 : 149,
+        planName: planId === "three_month" ? "Celestial 3-Month AutoPay" : "Celestial Monthly AutoPay",
+        authLink: res.authLink,
+        isDemo: res.isDemo,
+      });
+      setShowUpiModal(true);
+    } catch (err: any) {
+      setSubError(err.message || "Failed to initiate Cashfree UPI AutoPay mandate.");
+    } finally {
+      setSubLoading(false);
+    }
+  }
+
+  async function confirmUpiMandate() {
+    if (!pendingSubSession) return;
+    setPinSubmitting(true);
+    setSubError("");
+    try {
+      const email = f.email.trim() || (typeof window !== "undefined" ? localStorage.getItem("user_email") || "" : "");
+      const result = await verifyCashfreeSubscription({
+        subscriptionId: pendingSubSession.subscriptionId,
+        email,
+      });
+
+      if (result.success || result.isPremium) {
+        setSub(true);
+        setSubPlan(pendingSubSession.planId);
+        try {
+          localStorage.setItem("sub", "1");
+          localStorage.setItem("sub_plan", pendingSubSession.planId);
+        } catch {}
+        setShowUpiModal(false);
+        setPendingSubSession(null);
+        setSubSuccessMsg(
+          `🎉 UPI AutoPay Active! ₹${pendingSubSession.amount} ${
+            pendingSubSession.planId === "three_month" ? "3-Month" : "Monthly"
+          } plan confirmed.`
+        );
+        if (step === "locked") setStep("ask");
+        setTimeout(() => {
+          setSubSuccessMsg("");
+        }, 7000);
+      } else {
+        throw new Error("Mandate was not approved by payment gateway.");
+      }
+    } catch (err: any) {
+      setSubError(err.message || "Mandate verification failed. Please try again.");
+    } finally {
+      setPinSubmitting(false);
+    }
+  }
+
+  function subscribe() {
+    initiateUpiAutopay("monthly");
   }
 
   const stepsMeta = [
@@ -1952,36 +2107,242 @@ export default function App() {
         {/* TAB: PLANS */}
         {tab === "Plans" && (
           <div className="space-y-4 animate-in fade-in duration-200">
-            <h1 className="text-2xl font-bold tracking-tight text-[#EDE9FA]">Membership Plans</h1>
-            <p className="text-xs text-[#A59FC8]">
-              Unlock deep-dive chart interpretations, planetary transits, and unlimited query analysis.
-            </p>
+            {/* Header */}
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <h1 className="text-2xl font-bold tracking-tight text-[#EDE9FA]">Membership Plans</h1>
+                <span className="inline-flex items-center gap-1 rounded-full bg-[#E8B86B]/15 px-2.5 py-0.5 text-[11px] font-semibold text-[#E8B86B] border border-[#E8B86B]/30">
+                  ⚡ UPI AutoPay
+                </span>
+              </div>
+              <p className="text-xs text-[#A59FC8]">
+                Continuous planetary guidance powered by <strong>Cashfree Payments UPI AutoPay</strong>.
+              </p>
+            </div>
 
-            {[
-              ["Monthly Access", "$9.99 / month", "Billed monthly, cancel anytime"],
-              ["Annual Cosmic Pass", "$79.99 / year", "Save 33% + Full solar return forecast"]
-            ].map(([n, p, d]) => (
-              <div key={n} className={card + " space-y-3 border-[#2E2752] hover:border-[#E8B86B]/50 transition-colors"}>
-                <div className="flex justify-between items-baseline">
-                  <span className="font-semibold text-base text-[#EDE9FA]">{n}</span>
-                  <span className="text-base font-bold text-[#E8B86B]">{p}</span>
+            {/* Success Alert */}
+            {subSuccessMsg && (
+              <div className="rounded-2xl border border-emerald-500/40 bg-emerald-950/40 p-3 text-xs text-emerald-200 flex items-center gap-2 shadow-lg animate-in fade-in">
+                <span>✨</span>
+                <span>{subSuccessMsg}</span>
+              </div>
+            )}
+
+            {/* Error Alert */}
+            {subError && (
+              <div className="rounded-2xl border border-rose-500/40 bg-rose-950/40 p-3 text-xs text-rose-200 flex items-center justify-between gap-2 shadow-lg animate-in fade-in">
+                <div className="flex items-center gap-2">
+                  <span>⚠️</span>
+                  <span>{subError}</span>
                 </div>
-                <p className="text-xs text-[#A59FC8]">{d}</p>
                 <button
-                  className={btn}
-                  onClick={subscribe}
-                  disabled={sub}
+                  type="button"
+                  onClick={() => setSubError("")}
+                  className="text-rose-400 hover:text-white text-xs font-bold"
                 >
-                  {sub ? "Current Plan ✓" : "Activate (Demo Mode)"}
+                  ✕
                 </button>
               </div>
-            ))}
+            )}
 
-            <p className="text-center text-xs text-[#7C75A3] pt-2">
-              Demo sandbox: no actual card payment will be processed.
-            </p>
+            {/* ACTIVE SUBSCRIPTION OVERVIEW (If already subscribed) */}
+            {sub && (
+              <div className="rounded-2xl border border-emerald-500/40 bg-gradient-to-br from-[#1B2925] to-[#141B26] p-4 space-y-3 shadow-lg">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-2.5 w-2.5 rounded-full bg-emerald-400 animate-pulse" />
+                    <span className="font-semibold text-sm text-emerald-300">
+                      Active UPI AutoPay Plan
+                    </span>
+                  </div>
+                  <span className="text-[11px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                    {subPlan === "three_month" ? "₹299 / 3-Months" : "₹149 / Month"}
+                  </span>
+                </div>
+
+                <div className="text-xs text-[#C5C0E2] leading-relaxed">
+                  Your cosmic membership is unlocked. Planetary transits, houses, and unlimited astrological query analyses are active.
+                </div>
+
+                <div className="flex flex-wrap items-center justify-between pt-2 border-t border-emerald-500/20 text-[11px] text-[#A59FC8] gap-2">
+                  <span>Autopay Mandate: <strong>Cashfree NPCI Active</strong></span>
+                  <span>Cancel anytime in your UPI App</span>
+                </div>
+              </div>
+            )}
+
+            {/* UPI MANDATE PHONE NUMBER INPUT */}
+            <div className={card + " space-y-2 border-[#2E2752]"}>
+              <div className="flex justify-between items-center text-xs">
+                <label className="font-semibold text-[#EDE9FA] flex items-center gap-1.5">
+                  <span>📱</span> UPI Linked Mobile Number
+                </label>
+                <span className="text-[10px] text-[#A59FC8]">Required for mandate</span>
+              </div>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-[#E8B86B]">
+                  +91
+                </span>
+                <input
+                  type="tel"
+                  maxLength={10}
+                  placeholder="9876543210"
+                  className={inp + " pl-12 text-xs py-2 min-h-10"}
+                  value={subPhone}
+                  onChange={e => setSubPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                />
+              </div>
+              <p className="text-[10px] text-[#7C75A3]">
+                Your UPI app (GPay / PhonePe / Paytm) will receive the AutoPay approval request on this number.
+              </p>
+            </div>
+
+            {/* PLAN 1: MONTHLY PLAN (149 RS) */}
+            <div
+              className={
+                card +
+                " space-y-3 transition-all relative overflow-hidden " +
+                (sub && subPlan === "monthly"
+                  ? "border-emerald-500/60 bg-[#161B29]"
+                  : "border-[#2E2752] hover:border-[#E8B86B]/60")
+              }
+            >
+              <div className="flex justify-between items-start">
+                <div>
+                  <span className="text-xs uppercase tracking-wider font-semibold text-[#A59FC8]">
+                    Standard Access
+                  </span>
+                  <h3 className="font-bold text-base text-[#EDE9FA]">Monthly Plan</h3>
+                  <p className="text-xs text-[#A59FC8]">Billed monthly via UPI AutoPay</p>
+                </div>
+                <div className="text-right">
+                  <div className="text-2xl font-black text-[#E8B86B]">₹149</div>
+                  <span className="text-[11px] text-[#A59FC8]">per month</span>
+                </div>
+              </div>
+
+              <ul className="space-y-1.5 text-xs text-[#C8C3E6] pt-1">
+                <li className="flex items-center gap-2">
+                  <span className="text-[#E8B86B]">✓</span> Unlimited natal chart query analysis
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="text-[#E8B86B]">✓</span> Instant planetary transit &amp; house insights
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="text-[#E8B86B]">✓</span> Automatic monthly renewal via UPI AutoPay
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="text-[#E8B86B]">✓</span> Pre-debit SMS alert 24 hrs prior
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="text-[#E8B86B]">✓</span> Cancel or pause anytime in 1 tap
+                </li>
+              </ul>
+
+              <button
+                type="button"
+                className={btn}
+                disabled={subLoading}
+                onClick={() => initiateUpiAutopay("monthly")}
+              >
+                {subLoading
+                  ? "Connecting Cashfree..."
+                  : sub && subPlan === "monthly"
+                  ? "Current Active Plan ✓"
+                  : "Set Up Monthly AutoPay (₹149/mo) →"}
+              </button>
+            </div>
+
+            {/* PLAN 2: THREE-MONTH PLAN (299 RS) - HIGHLIGHTED */}
+            <div
+              className={
+                card +
+                " space-y-3 transition-all relative overflow-hidden border-2 " +
+                (sub && subPlan === "three_month"
+                  ? "border-emerald-400 bg-[#161B29]"
+                  : "border-[#E8B86B] bg-gradient-to-b from-[#1E1738] to-[#16122C] shadow-lg shadow-[#E8B86B]/10")
+              }
+            >
+              {/* Top Banner Ribbon */}
+              <div className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-[#E8B86B] to-[#FFD584] px-3 py-1 text-[11px] font-bold text-[#1A1230] shadow-sm">
+                <span>✨</span> MOST POPULAR · SAVE 33%
+              </div>
+
+              <div className="flex justify-between items-start">
+                <div>
+                  <span className="text-xs uppercase tracking-wider font-semibold text-[#E8B86B]">
+                    Best Value Cosmic Pass
+                  </span>
+                  <h3 className="font-bold text-lg text-[#EDE9FA]">3-Month Plan</h3>
+                  <p className="text-xs text-[#A59FC8]">Billed every 3 months via UPI AutoPay</p>
+                </div>
+                <div className="text-right">
+                  <div className="text-2xl font-black text-[#E8B86B]">₹299</div>
+                  <span className="text-[11px] text-emerald-400 font-semibold block">
+                    ~₹99.6 / mo
+                  </span>
+                  <span className="text-[10px] text-[#A59FC8]">for 3 months</span>
+                </div>
+              </div>
+
+              <ul className="space-y-1.5 text-xs text-[#C8C3E6] pt-1">
+                <li className="flex items-center gap-2">
+                  <span className="text-[#E8B86B]">★</span> All Monthly Plan features included
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="text-[#E8B86B]">★</span> Full 90-day astrological forecast &amp; horizon
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="text-[#E8B86B]">★</span> Save ₹148 vs monthly billing (33% off)
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="text-[#E8B86B]">★</span> Single UPI authorization lasts 3 whole months
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="text-[#E8B86B]">★</span> Priority question calculation speed
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="text-[#E8B86B]">★</span> Seamless auto-renewal, cancel anytime
+                </li>
+              </ul>
+
+              <button
+                type="button"
+                className={btn}
+                disabled={subLoading}
+                onClick={() => initiateUpiAutopay("three_month")}
+              >
+                {subLoading
+                  ? "Connecting Cashfree..."
+                  : sub && subPlan === "three_month"
+                  ? "Current Active Plan ✓"
+                  : "Set Up 3-Month AutoPay (₹299 for 3 Mo) →"}
+              </button>
+            </div>
+
+            {/* TRUST / CASHFREE BADGE & UPI APP ICONS */}
+            <div className="rounded-2xl border border-[#2E2752] bg-[#120D24]/80 p-3.5 space-y-2 text-center">
+              <div className="flex items-center justify-center gap-2 text-xs font-semibold text-[#EDE9FA]">
+                <span>🔒</span>
+                <span>Powered by Cashfree Payments UPI AutoPay</span>
+              </div>
+              <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+                {["Google Pay", "PhonePe", "Paytm", "BHIM UPI", "Cred"].map(app => (
+                  <span
+                    key={app}
+                    className="rounded-lg bg-[#1D1739] px-2.5 py-1 text-[10px] font-semibold text-[#EDE9FA] border border-[#2E2752]"
+                  >
+                    {app}
+                  </span>
+                ))}
+              </div>
+              <p className="text-[10px] text-[#7C75A3] pt-1 leading-relaxed">
+                NPCI &amp; RBI Compliant e-Mandate. You can pause or revoke this mandate anytime directly inside your UPI app under Settings → AutoPay.
+              </p>
+            </div>
           </div>
         )}
+
       </main>
 
       {/* GOOGLE CLIENT ID SETUP MODAL (Shown only if Client ID is not yet configured) */}
@@ -2095,7 +2456,146 @@ export default function App() {
         </div>
       )}
 
+      {/* CASHFREE UPI AUTOPAY MANDATE MODAL */}
+
+      {showUpiModal && pendingSubSession && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="w-full max-w-sm rounded-3xl border border-[#E8B86B]/40 bg-[#150F28] p-5 shadow-2xl space-y-4">
+            {/* Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-[#2E2752]">
+              <div className="flex items-center gap-2">
+                <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-gradient-to-tr from-[#E8B86B] to-[#FFE2A4] text-xs font-bold text-[#1A1230]">
+                  ⚡
+                </span>
+                <div>
+                  <h3 className="text-sm font-bold text-[#EDE9FA]">UPI AutoPay Mandate</h3>
+                  <p className="text-[10px] text-[#A59FC8]">Cashfree Payments Gateway</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowUpiModal(false);
+                  setPendingSubSession(null);
+                }}
+                className="text-[#A59FC8] hover:text-white text-base font-bold cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Mandate Summary Card */}
+            <div className="rounded-2xl border border-[#2E2752] bg-[#1E1738] p-3 space-y-2 text-xs">
+              <div className="flex justify-between">
+                <span className="text-[#A59FC8]">Merchant:</span>
+                <span className="font-semibold text-[#EDE9FA]">Astrology App</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-[#A59FC8]">Plan:</span>
+                <span className="font-semibold text-[#E8B86B]">{pendingSubSession.planName}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-[#A59FC8]">Mandate Amount:</span>
+                <span className="font-bold text-sm text-[#E8B86B]">₹{pendingSubSession.amount}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-[#A59FC8]">Debit Frequency:</span>
+                <span className="font-medium text-[#EDE9FA]">
+                  {pendingSubSession.planId === "three_month" ? "Every 3 Months" : "Monthly"}
+                </span>
+              </div>
+              <div className="flex justify-between pt-1 border-t border-[#2E2752]/60 text-[11px]">
+                <span className="text-[#7C75A3]">Sub ID:</span>
+                <span className="font-mono text-[10px] text-[#A59FC8] truncate max-w-[150px]">
+                  {pendingSubSession.subscriptionId}
+                </span>
+              </div>
+            </div>
+
+            {/* Select UPI App */}
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-semibold text-[#EDE9FA] block">
+                Select Your UPI App:
+              </label>
+              <div className="grid grid-cols-3 gap-1.5">
+                {[
+                  { id: "gpay", name: "Google Pay", icon: "🟢" },
+                  { id: "phonepe", name: "PhonePe", icon: "🟣" },
+                  { id: "paytm", name: "Paytm", icon: "🔵" },
+                  { id: "bhim", name: "BHIM UPI", icon: "🟠" },
+                  { id: "cred", name: "Cred", icon: "⚪" },
+                  { id: "other", name: "Other UPI", icon: "⚡" },
+                ].map(app => (
+                  <button
+                    key={app.id}
+                    type="button"
+                    onClick={() => setSelectedUpiApp(app.id)}
+                    className={
+                      "rounded-xl border p-2 text-center text-[10px] font-semibold transition-all cursor-pointer flex flex-col items-center gap-1 " +
+                      (selectedUpiApp === app.id
+                        ? "border-[#E8B86B] bg-[#E8B86B]/15 text-[#EDE9FA] ring-1 ring-[#E8B86B]"
+                        : "border-[#2E2752] bg-[#1B1433] text-[#A59FC8] hover:border-[#3E346B]")
+                    }
+                  >
+                    <span>{app.icon}</span>
+                    <span className="truncate w-full">{app.name}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* UPI PIN entry simulation */}
+            <div className="space-y-1.5 pt-1">
+              <label className="text-[11px] font-semibold text-[#EDE9FA] flex justify-between">
+                <span>Authorize with UPI PIN:</span>
+                <span className="text-[10px] text-[#7C75A3]">Test PIN: 1234</span>
+              </label>
+              <div className="relative">
+                <input
+                  type="password"
+                  maxLength={6}
+                  placeholder="••••"
+                  className={inp + " text-center tracking-[0.5em] font-mono text-base py-2 min-h-10"}
+                  value={simulatedUpiPin}
+                  onChange={e => setSimulatedUpiPin(e.target.value.replace(/\D/g, ""))}
+                />
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="space-y-2 pt-1">
+              <button
+                type="button"
+                disabled={pinSubmitting}
+                onClick={confirmUpiMandate}
+                className="w-full rounded-2xl bg-gradient-to-r from-[#E8B86B] to-[#FFD584] py-3 text-xs font-bold text-[#1A1230] hover:opacity-95 active:scale-[0.98] transition-all cursor-pointer shadow-lg shadow-[#E8B86B]/20 disabled:opacity-50"
+              >
+                {pinSubmitting
+                  ? "Authorizing Mandate..."
+                  : `Authorize AutoPay Mandate (₹${pendingSubSession.amount}) ✓`}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowUpiModal(false);
+                  setPendingSubSession(null);
+                }}
+                className="w-full rounded-xl border border-[#2E2752] py-2 text-xs text-[#A59FC8] hover:text-white cursor-pointer"
+              >
+                Cancel
+              </button>
+            </div>
+
+            {/* Security note */}
+            <p className="text-center text-[10px] text-[#7C75A3] leading-relaxed">
+              🔒 256-bit Bank Grade Security. Mandate registration is processed via NPCI UPI AutoPay. Cancel anytime from your UPI App.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* BOTTOM NAVIGATION BAR */}
+
       <nav className="fixed inset-x-0 bottom-0 mx-auto flex max-w-md border-t border-[#2E2752] bg-[#150F2B]/95 backdrop-blur-md px-2 pb-[calc(env(safe-area-inset-bottom)+12px)] pt-2 z-40">
         {TABS.map(t => (
           <button
