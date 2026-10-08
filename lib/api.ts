@@ -199,8 +199,11 @@ export interface SubscriptionPlanItem {
   name: string;
   tagline: string;
   amount: number;
-  intervals: number;
-  intervalType: string;
+  amountPaise?: number;
+  period?: string;
+  interval?: number;
+  intervals?: number;
+  intervalType?: string;
   badge?: string;
   savings?: string;
   perMonthText: string;
@@ -213,8 +216,9 @@ export interface PlansResponse {
   gateway: {
     provider: string;
     method: string;
-    env: string;
+    keyId?: string;
     isConfigured: boolean;
+    env?: string;
   };
 }
 
@@ -241,14 +245,15 @@ export interface CreateSubscriptionResponse {
   success: boolean;
   subscriptionId: string;
   authLink: string;
-  sessionId?: string;
+  keyId?: string;
+  razorpayPlanId?: string;
   plan: SubscriptionPlanItem;
   isDemo: boolean;
   message?: string;
   error?: string;
 }
 
-export async function createCashfreeSubscription(
+export async function createSubscription(
   params: CreateSubscriptionParams
 ): Promise<CreateSubscriptionResponse> {
   const endpoint = `${BASE_URL}/api/subscriptions/create`;
@@ -259,10 +264,12 @@ export async function createCashfreeSubscription(
   });
   const data = await res.json();
   if (!res.ok || data.error) {
-    throw new Error(data.error || "Failed to initialize UPI AutoPay mandate");
+    throw new Error(data.error || "Failed to initialize subscription checkout");
   }
   return data;
 }
+
+export const createCashfreeSubscription = createSubscription;
 
 export interface VerifySubscriptionResult {
   success: boolean;
@@ -274,8 +281,10 @@ export interface VerifySubscriptionResult {
   error?: string;
 }
 
-export async function verifyCashfreeSubscription(params: {
+export async function verifySubscription(params: {
   subscriptionId: string;
+  paymentId?: string;
+  signature?: string;
   email?: string;
 }): Promise<VerifySubscriptionResult> {
   const endpoint = `${BASE_URL}/api/subscriptions/verify`;
@@ -286,12 +295,14 @@ export async function verifyCashfreeSubscription(params: {
   });
   const data = await res.json();
   if (!res.ok || data.error) {
-    throw new Error(data.error || "Failed to verify UPI AutoPay mandate");
+    throw new Error(data.error || "Failed to verify subscription payment");
   }
   return data;
 }
 
-export async function checkCashfreeSubscriptionStatus(
+export const verifyCashfreeSubscription = verifySubscription;
+
+export async function checkSubscriptionStatus(
   subscriptionId: string
 ): Promise<any> {
   const endpoint = `${BASE_URL}/api/subscriptions/status/${encodeURIComponent(
@@ -301,4 +312,6 @@ export async function checkCashfreeSubscriptionStatus(
   if (!res.ok) return null;
   return await res.json();
 }
+
+export const checkCashfreeSubscriptionStatus = checkSubscriptionStatus;
 
