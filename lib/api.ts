@@ -315,3 +315,52 @@ export async function checkSubscriptionStatus(
 
 export const checkCashfreeSubscriptionStatus = checkSubscriptionStatus;
 
+export interface AstrologicalAnswer {
+  aiAnswer?: string;
+  summary: string;
+  interpretation: string;
+  keyPlacements: { planet: string; sign: string; house: number; relevance: string }[];
+  cosmicAdvice: string[];
+  timing: string;
+}
+
+export async function askAstrologyQuestion(params: {
+  question: string;
+  name?: string;
+  chart: any;
+  customApiKey?: string;
+}): Promise<AstrologicalAnswer> {
+  // First attempt: call configured backend endpoint (e.g. Express server on :5000)
+  try {
+    const endpoint = `${BASE_URL}/api/chart/ask`;
+    const res = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(params),
+    });
+    const data = await res.json();
+    if (res.ok && data.success && data.answer) {
+      return data.answer;
+    }
+  } catch (err) {
+    console.warn("Backend /api/chart/ask call warning:", err);
+  }
+
+  // Second attempt: call Next.js route /api/chart/ask directly
+  try {
+    const res = await fetch("/api/chart/ask", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(params),
+    });
+    const data = await res.json();
+    if (res.ok && data.success && data.answer) {
+      return data.answer;
+    }
+  } catch (err) {
+    console.warn("Next.js /api/chart/ask call warning:", err);
+  }
+
+  throw new Error("Unable to contact astrological reading service.");
+}
+

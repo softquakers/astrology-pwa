@@ -11,6 +11,8 @@ import {
   verifySubscription,
   SubscriptionPlanItem,
   BACKEND_URL,
+  askAstrologyQuestion,
+  AstrologicalAnswer,
 } from "../lib/api";
 
 declare global {
@@ -74,14 +76,6 @@ function loadRazorpayScript(): Promise<boolean> {
 type P = { name: string; sign: string; deg: number; house: number };
 type Chart = { asc: string; planets: P[]; aspects: string[] };
 
-export interface AstrologicalAnswer {
-  summary: string;
-  interpretation: string;
-  keyPlacements: { planet: string; sign: string; house: number; relevance: string }[];
-  cosmicAdvice: string[];
-  timing: string;
-}
-
 type Rec = { q: string; name: string; at: string; chart: Chart; answer?: AstrologicalAnswer };
 
 const TABS = ["Home", "History", "Profile", "Plans"] as const;
@@ -128,13 +122,34 @@ function generateAstrologicalAnswer(question: string, querentName: string, chart
   const saturn = chart.planets.find(p => p.name === "Saturn") || { name: "Saturn", sign: "Capricorn", deg: 0, house: 10 };
   const asc = chart.asc || "Aries";
 
+  const isMarriage = /(marr|wedding|spouse|husband|wife|soulmate|partner|matrimon)/i.test(qLower);
+  const isLove = isMarriage || /(love|dating|romance|crush|heart|relationship|bf|gf|boyfriend|girlfriend)/i.test(qLower);
   const isCareer = /(career|job|work|promotion|business|money|finance|wealth|grow|salary|profession|boss|company|hire|invest|2026|office|goal|success|raise)/i.test(qLower);
-  const isLove = /(love|marriage|partner|relationship|dating|romance|husband|wife|boyfriend|girlfriend|soulmate|marry|divorce|crush|heart|couple)/i.test(qLower);
   const isHealth = /(health|stress|body|vitality|energy|healing|illness|disease|mind|exhaust|diet|workout|sleep)/i.test(qLower);
 
+  let directAnswer = "";
+  if (isMarriage) {
+    const marriageOptions = [
+      `Based on your 7th house alignments and upcoming Jupiter-Venus transit cycles, marriage prospects open auspiciously between late 2027 and mid-2028, marked by a deeply supportive and mutual soul connection for ${querentName}.`,
+      `Your planetary transits highlight a high-probability marriage window between Autumn 2027 and Summer 2028, with favorable Venusian currents bringing long-term stability and marital harmony.`,
+      `Cosmic configurations across your relationship axis indicate that marriage and life-partner commitments solidify between late 2026 and mid-2027, supported by grounding Saturn and expansive Jupiter placements.`,
+    ];
+    directAnswer = marriageOptions[Math.floor(Math.random() * marriageOptions.length)];
+  } else if (isLove) {
+    directAnswer = `Planetary alignments indicate an uplifting romantic chapter beginning over the next 4 to 8 months, where emotional reciprocity and authentic connection will flourish for ${querentName}.`;
+  } else if (isCareer) {
+    directAnswer = `Your 10th house planetary momentum indicates a decisive career breakthrough and lucrative advancement between early and mid-2027 for ${querentName}.`;
+  } else if (isHealth) {
+    directAnswer = `Your solar vitality charts a rejuvenating upward cycle starting within 3 to 5 months, provided mindful rest and restorative grounding practices are prioritized.`;
+  } else {
+    directAnswer = `Celestial configurations show favorable planetary currents aligning in your favor over the next 6 to 12 months, bringing clear resolution and fruitful progress for ${querentName}.`;
+  }
+
   if (isCareer) {
+    const baseSummary = `Your natal chart indicates strong professional momentum, with ${jupiter.name} in ${jupiter.sign} (House ${jupiter.house}) empowering upward career expansion for ${querentName}.`;
     return {
-      summary: `Your natal chart indicates strong professional momentum, with ${jupiter.name} in ${jupiter.sign} (House ${jupiter.house}) empowering upward career expansion for ${querentName}.`,
+      aiAnswer: directAnswer,
+      summary: `${directAnswer} ${baseSummary}`,
       interpretation: `With your Ascendant in ${asc} and your Sun radiating in ${sun.sign} in House ${sun.house}, your career blueprint thrives on clear vision and self-directed leadership. Jupiter's placement in House ${jupiter.house} signals that calculated boldness and strategic moves will unlock lucrative doors. Meanwhile, Saturn in ${saturn.sign} in House ${saturn.house} acts as your grounding pillar—ensuring that milestones achieved through discipline and consistency will stand firm over time.`,
       keyPlacements: [
         {
@@ -164,8 +179,10 @@ function generateAstrologicalAnswer(question: string, querentName: string, chart
       ],
     };
   } else if (isLove) {
+    const baseSummary = `In matters of love and relationships, your chart emphasizes emotional authenticity, with Venus in ${venus.sign} and Moon in ${moon.sign} guiding meaningful harmony.`;
     return {
-      summary: `In matters of love and relationships, your chart emphasizes emotional authenticity, with Venus in ${venus.sign} and Moon in ${moon.sign} guiding meaningful harmony.`,
+      aiAnswer: directAnswer,
+      summary: `${directAnswer} ${baseSummary}`,
       interpretation: `With ${asc} rising and Venus placed in ${venus.sign} in House ${venus.house}, your romantic journey values heartfelt reciprocity and open-hearted communication. Moon in ${moon.sign} in House ${moon.house} indicates that emotional safety and mutual respect are essential before you give your full trust. Current astrological configurations suggest past emotional lessons are crystallizing into profound relational clarity.`,
       keyPlacements: [
         {
@@ -195,8 +212,10 @@ function generateAstrologicalAnswer(question: string, querentName: string, chart
       ],
     };
   } else if (isHealth) {
+    const baseSummary = `Your chart highlights rejuvenation and somatic balance as priorities, anchored by Sun in ${sun.sign} and Mars in ${mars.sign}.`;
     return {
-      summary: `Your chart highlights rejuvenation and somatic balance as priorities, anchored by Sun in ${sun.sign} and Mars in ${mars.sign}.`,
+      aiAnswer: directAnswer,
+      summary: `${directAnswer} ${baseSummary}`,
       interpretation: `With ${asc} rising, your physical constitution is intimately tied to your mental surroundings. Mars in ${mars.sign} in House ${mars.house} grants potent regenerative vigor, but urges moderation against prolonged stress. Moon in ${moon.sign} reveals that restorative sleep, mindfulness, and grounding rituals are direct prerequisites for your vitality.`,
       keyPlacements: [
         {
@@ -226,8 +245,10 @@ function generateAstrologicalAnswer(question: string, querentName: string, chart
       ],
     };
   } else {
+    const baseSummary = `Your natal chart indicates an inspiring chapter of personal alignment and cosmic clarity unfolding for ${querentName}.`;
     return {
-      summary: `Your natal chart indicates an inspiring chapter of personal alignment and cosmic clarity unfolding for ${querentName}.`,
+      aiAnswer: directAnswer,
+      summary: `${directAnswer} ${baseSummary}`,
       interpretation: `Examining your inquiry through your ${asc} Ascendant and ${sun.sign} Sun reveals a powerful awakening of self-trust. Mercury in ${mercury.sign} in House ${mercury.house} provides sharp discernment and perspective, while Jupiter in ${jupiter.sign} in House ${jupiter.house} offers cosmic protection. Aligning your day-to-day choices with your authentic core values will generate immediate peace and progress.`,
       keyPlacements: [
         {
@@ -274,9 +295,17 @@ const Report = ({ r }: { r: Rec }) => (
       <p className="italic text-[#EDE9FA]">"{r.q}"</p>
     </div>
     {r.answer && (
-      <div className="rounded-xl bg-[#241D42] p-3 text-xs space-y-2 border border-[#E8B86B]/30">
+      <div className="rounded-xl bg-[#241D42] p-3 text-xs space-y-2.5 border border-[#E8B86B]/30">
+        {r.answer.aiAnswer && (
+          <div className="rounded-lg bg-[#2C214D] p-2.5 border border-[#E8B86B]/40 space-y-1">
+            <div className="font-bold text-[#E8B86B] flex items-center gap-1.5 text-[11px] uppercase tracking-wider">
+              <span>✨</span> Direct Answer:
+            </div>
+            <p className="text-[#EDE9FA] font-medium leading-relaxed">{r.answer.aiAnswer}</p>
+          </div>
+        )}
         <div className="font-semibold text-[#E8B86B] flex items-center gap-1.5">
-          <span>✨</span> Astrological Reading:
+          <span>🔮</span> Cosmic Synthesis:
         </div>
         <p className="text-[#EDE9FA] font-medium">{r.answer.summary}</p>
         <p className="text-[#D6D1EE] leading-relaxed">{r.answer.interpretation}</p>
@@ -360,6 +389,9 @@ export default function App() {
   const [cur, setCur] = useState<Rec | null>(null);
   const [currentAnswer, setCurrentAnswer] = useState<AstrologicalAnswer | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
+  const [openAiKey, setOpenAiKey] = useState("");
+  const [showApiKeyModal, setShowApiKeyModal] = useState(false);
+  const [apiKeyInput, setApiKeyInput] = useState("");
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
   const [ok, setOk] = useState(true);
@@ -544,6 +576,11 @@ export default function App() {
       if (savedPlan) setSubPlan(savedPlan);
       const savedPhone = localStorage.getItem("sub_phone");
       if (savedPhone) setSubPhone(savedPhone);
+      const savedApiKey = localStorage.getItem("chatgpt_api_key");
+      if (savedApiKey) {
+        setOpenAiKey(savedApiKey);
+        setApiKeyInput(savedApiKey);
+      }
 
       // Check URL query parameters for Razorpay / payment gateway redirect
       if (typeof window !== "undefined") {
@@ -967,7 +1004,7 @@ export default function App() {
     }
   }
 
-  function ask() {
+  async function ask() {
     if (!chart) return;
     if (!q.trim()) return;
 
@@ -978,7 +1015,30 @@ export default function App() {
     }
 
     setAnalyzing(true);
-    setTimeout(() => {
+    try {
+      const reading = await askAstrologyQuestion({
+        question: q.trim(),
+        name: f.name.trim() || "Querent",
+        chart,
+        customApiKey: openAiKey.trim() || undefined,
+      });
+
+      const r: Rec = {
+        q,
+        name: f.name || "Querent",
+        at: new Date().toLocaleDateString(),
+        chart,
+        answer: reading,
+      };
+      const h = [r, ...hist];
+      setHist(h);
+      try {
+        localStorage.setItem("hist", JSON.stringify(h));
+      } catch {}
+      setCur(r);
+      setCurrentAnswer(reading);
+    } catch (err) {
+      console.warn("API ask failed, using client astrological engine:", err);
       const reading = generateAstrologicalAnswer(q, f.name || "Querent", chart);
       const r: Rec = {
         q,
@@ -994,8 +1054,9 @@ export default function App() {
       } catch {}
       setCur(r);
       setCurrentAnswer(reading);
+    } finally {
       setAnalyzing(false);
-    }, 450);
+    }
   }
 
   const defaultPlans: SubscriptionPlanItem[] = [
@@ -1933,11 +1994,26 @@ export default function App() {
               )}
             </div>
 
-            <div className="space-y-1">
-              <h2 className="text-xl font-bold tracking-tight text-[#EDE9FA]">Ask your question</h2>
-              <p className="text-xs sm:text-sm text-[#A59FC8]">
-                What insights, career directions, or relationship alignments would you like to explore?
-              </p>
+            <div className="flex items-center justify-between gap-2">
+              <div className="space-y-1">
+                <h2 className="text-xl font-bold tracking-tight text-[#EDE9FA]">Ask your question</h2>
+                <p className="text-xs sm:text-sm text-[#A59FC8]">
+                  What insights, career directions, or relationship alignments would you like to explore?
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setApiKeyInput(openAiKey);
+                  setShowApiKeyModal(true);
+                }}
+                className="shrink-0 text-[11px] text-[#A59FC8] hover:text-[#E8B86B] bg-[#231A40] border border-[#3E346B] px-2.5 py-1.5 rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer"
+                title="Configure ChatGPT API Key"
+              >
+                <span>🤖</span>
+                <span className="hidden sm:inline">ChatGPT AI</span>
+                <span className="text-[10px] text-[#E8B86B] font-semibold">{openAiKey ? "Custom" : "Active"}</span>
+              </button>
             </div>
 
             <textarea
@@ -2015,6 +2091,23 @@ export default function App() {
                     <span className="text-[#A59FC8] font-medium block mb-0.5">Your Question:</span>
                     <span className="italic text-[#EDE9FA] font-medium">"{q}"</span>
                   </div>
+
+                  {/* FIRST PART OF RESPONSE: DIRECT ANSWER */}
+                  {currentAnswer.aiAnswer && (
+                    <div className="rounded-xl bg-gradient-to-r from-[#2C1E4E] to-[#1E173D] p-3.5 border border-[#E8B86B]/60 shadow-lg space-y-1.5 animate-in fade-in">
+                      <div className="text-xs font-bold uppercase tracking-wider text-[#E8B86B] flex items-center justify-between">
+                        <span className="flex items-center gap-1.5">
+                          <span>✨</span> Direct Celestial Answer
+                        </span>
+                        <span className="text-[10px] font-normal text-[#E8B86B]/90 bg-[#17102D] px-2 py-0.5 rounded-full border border-[#E8B86B]/30">
+                          AI Astrological Prediction
+                        </span>
+                      </div>
+                      <p className="text-sm font-semibold text-[#EDE9FA] leading-relaxed">
+                        {currentAnswer.aiAnswer}
+                      </p>
+                    </div>
+                  )}
 
                   {/* Summary / Core Answer */}
                   <div className="space-y-1.5">
@@ -2235,6 +2328,52 @@ export default function App() {
                 <span className={serverOnline ? "text-emerald-400 font-medium" : "text-amber-400 font-medium"}>
                   {serverOnline ? "Online (Express)" : "Offline"}
                 </span>
+              </div>
+            </div>
+
+            {/* ChatGPT / OpenAI Integration Settings */}
+            <div className={card + " space-y-3 text-xs"}>
+              <div className="flex items-center justify-between">
+                <div className="font-semibold text-[#EDE9FA] flex items-center gap-1.5">
+                  <span>🤖</span> ChatGPT AI Integration
+                </div>
+                <span className={`text-[10px] px-2 py-0.5 rounded-full border ${openAiKey ? "text-emerald-300 border-emerald-500/40 bg-emerald-950/30" : "text-[#E8B86B] border-[#E8B86B]/30 bg-[#E8B86B]/10"}`}>
+                  {openAiKey ? "Custom Key Active" : "Server Env Default"}
+                </span>
+              </div>
+              <p className="text-[#A59FC8] leading-relaxed">
+                Empowers every query with direct predictions and clean astrological answers to your specific questions.
+              </p>
+              <div className="space-y-1.5">
+                <label className="text-[11px] text-[#A59FC8] block">OpenAI / ChatGPT API Key:</label>
+                <div className="flex gap-2">
+                  <input
+                    type="password"
+                    placeholder="sk-..."
+                    value={apiKeyInput}
+                    onChange={e => setApiKeyInput(e.target.value)}
+                    className={inp + " text-xs py-1.5 min-h-9 font-mono flex-1"}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const trimmed = apiKeyInput.trim();
+                      setOpenAiKey(trimmed);
+                      if (trimmed) {
+                        try { localStorage.setItem("chatgpt_api_key", trimmed); } catch {}
+                      } else {
+                        try { localStorage.removeItem("chatgpt_api_key"); } catch {}
+                      }
+                      alert(trimmed ? "ChatGPT API Key saved successfully!" : "Key removed. Using server .env key.");
+                    }}
+                    className="shrink-0 px-3 py-1.5 rounded-xl bg-[#E8B86B] text-[#1A1230] font-semibold text-xs hover:bg-[#F2C77D] transition-colors cursor-pointer"
+                  >
+                    Save
+                  </button>
+                </div>
+                <p className="text-[10px] text-[#7C75A3]">
+                  Key can also be defined in <code className="text-[#E8B86B]">.env</code> as <code className="text-[#E8B86B]">OPENAI_API_KEY</code>.
+                </p>
               </div>
             </div>
 
@@ -2549,6 +2688,88 @@ export default function App() {
               <div className="text-[11px] text-[#7C75A3] bg-[#150F2B] p-2.5 rounded-xl border border-[#2E2752] space-y-1">
                 <div>💡 <strong className="text-[#A59FC8]">For production:</strong></div>
                 <div>Add <code className="text-[#E8B86B]">NEXT_PUBLIC_GOOGLE_CLIENT_ID</code> in your Netlify Environment Variables.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CHATGPT / OPENAI API KEY MODAL */}
+      {showApiKeyModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="w-full max-w-sm rounded-3xl border border-[#E8B86B]/40 bg-[#150F28] p-5 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-[#2E2752]">
+              <div className="flex items-center gap-2">
+                <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-[#E8B86B]/20 text-sm text-[#E8B86B]">
+                  🤖
+                </span>
+                <div>
+                  <h3 className="text-sm font-bold text-[#EDE9FA]">ChatGPT AI Settings</h3>
+                  <p className="text-[10px] text-[#A59FC8]">Astrological Question Answering</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowApiKeyModal(false)}
+                className="text-[#A59FC8] hover:text-white text-base font-bold cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <p className="text-[#D6D1EE] leading-relaxed">
+                Enter your OpenAI / ChatGPT API key to generate direct answers and personalized predictions for your queries:
+              </p>
+
+              <div className="space-y-1.5">
+                <label className="text-[11px] text-[#A59FC8] block font-medium">OpenAI API Key (sk-...):</label>
+                <input
+                  type="password"
+                  placeholder="sk-..."
+                  className={inp + " text-xs font-mono py-2 min-h-10"}
+                  value={apiKeyInput}
+                  onChange={e => setApiKeyInput(e.target.value)}
+                  autoFocus
+                />
+              </div>
+
+              <div className="flex gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const trimmed = apiKeyInput.trim();
+                    setOpenAiKey(trimmed);
+                    if (trimmed) {
+                      try { localStorage.setItem("chatgpt_api_key", trimmed); } catch {}
+                    } else {
+                      try { localStorage.removeItem("chatgpt_api_key"); } catch {}
+                    }
+                    setShowApiKeyModal(false);
+                  }}
+                  className={btn + " min-h-10 text-xs py-2"}
+                >
+                  Save API Key
+                </button>
+                {openAiKey && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOpenAiKey("");
+                      setApiKeyInput("");
+                      try { localStorage.removeItem("chatgpt_api_key"); } catch {}
+                      setShowApiKeyModal(false);
+                    }}
+                    className="px-3 min-h-10 text-xs rounded-xl border border-rose-500/40 text-rose-300 hover:bg-rose-950/30 transition-colors cursor-pointer"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+
+              <div className="text-[11px] text-[#7C75A3] bg-[#1A1433] p-2.5 rounded-xl border border-[#2E2752] space-y-1">
+                <div>💡 <strong className="text-[#A59FC8]">Server Environment:</strong></div>
+                <div>You can also set <code className="text-[#E8B86B]">OPENAI_API_KEY</code> in <code className="text-[#EDE9FA]">astrology-server/.env</code>.</div>
               </div>
             </div>
           </div>
