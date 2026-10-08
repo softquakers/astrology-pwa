@@ -666,7 +666,7 @@ export default function App() {
               Astrology App
             </h1>
             <p className="text-xs text-[#A59FC8] leading-relaxed max-w-sm mx-auto">
-              Discover your exact cosmic blueprint. Calculate your natal birth chart, rising sign (ascendant), and personalized planetary insights.
+              हम आपका भविष्य बताने के लिए जन्म कुंडली और चेहरा पढ़ने की विद्या दोनों का एक साथ उपयोग करते हैं। क्या हम शुरू करें?
             </p>
           </section>
         )}
