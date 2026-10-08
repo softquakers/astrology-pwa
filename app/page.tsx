@@ -142,7 +142,6 @@ export default function App() {
   const [busy, setBusy] = useState(false);
   const [ok, setOk] = useState(true);
   const [serverOnline, setServerOnline] = useState<boolean | null>(null);
-  const [showPurposeDetails, setShowPurposeDetails] = useState(false);
 
   const getEffectiveClientId = () => {
     return (
@@ -660,128 +659,16 @@ export default function App() {
           )}
         </header>
 
-        {/* Home Page Title & App Purpose Section */}
+        {/* Home Page Title Section */}
         {tab === "Home" && (
-          <section className="space-y-3 pt-1">
-            <div className="space-y-1.5 text-center">
-              <div className="inline-flex items-center gap-1.5 rounded-full bg-[#E8B86B]/10 px-3 py-0.5 text-[11px] font-medium text-[#E8B86B] border border-[#E8B86B]/25">
-                ✨ Precision Ephemeris &amp; Natal Charts
-              </div>
-              <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#EDE9FA]">
-                Astrology App
-              </h1>
-              <p className="text-xs text-[#A59FC8] leading-relaxed max-w-sm mx-auto">
-                Discover your exact cosmic blueprint. Calculate your natal birth chart, rising sign (ascendant), and personalized planetary insights.
-              </p>
-            </div>
-
-            {/* Purpose of This App Card */}
-            <div className="rounded-2xl border border-[#2E2752] bg-[#16122E]/80 p-3.5 text-xs shadow-md space-y-2.5">
-              <div className="flex items-center justify-between">
-                <span className="font-semibold text-[#E8B86B] flex items-center gap-1.5 text-xs">
-                  <span>🌌</span> Purpose of this App
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setShowPurposeDetails(v => !v)}
-                  className="text-[11px] text-[#E8B86B] hover:text-[#FFE2A4] hover:underline cursor-pointer flex items-center gap-1 font-medium"
-                >
-                  {showPurposeDetails ? "Hide Details ▲" : "How It Works ▼"}
-                </button>
-              </div>
-
-              <p className="text-[#D6D1EE] leading-relaxed">
-                This app uses astronomical planetary ephemeris to map the exact cosmic sky at your birth moment. By entering your birth date, time, and coordinates, it determines your planetary signs, houses, rising sign, and aspect alignments to provide deep personal guidance and answer life questions.
-              </p>
-
-              {showPurposeDetails && (
-                <div className="pt-2.5 border-t border-[#2E2752]/70 space-y-2 animate-in fade-in duration-150">
-                  <div className="grid grid-cols-2 gap-2 text-[11px]">
-                    <div className="rounded-xl bg-[#1A1533] p-2.5 border border-[#2E2752] space-y-1">
-                      <div className="font-semibold text-[#EDE9FA] flex items-center gap-1">
-                        <span>🪐</span> Natal Birth Chart
-                      </div>
-                      <p className="text-[#A59FC8] leading-tight">
-                        Calculates precise degrees of Sun, Moon, and planets across all 12 astrological houses.
-                      </p>
-                    </div>
-
-                    <div className="rounded-xl bg-[#1A1533] p-2.5 border border-[#2E2752] space-y-1">
-                      <div className="font-semibold text-[#EDE9FA] flex items-center gap-1">
-                        <span>☀️</span> Rising Sign (Asc)
-                      </div>
-                      <p className="text-[#A59FC8] leading-tight">
-                        Identifies the eastern horizon zodiac sign using your exact birth place coordinates and timezone.
-                      </p>
-                    </div>
-
-                    <div className="rounded-xl bg-[#1A1533] p-2.5 border border-[#2E2752] space-y-1">
-                      <div className="font-semibold text-[#EDE9FA] flex items-center gap-1">
-                        <span>🔮</span> Question Readings
-                      </div>
-                      <p className="text-[#A59FC8] leading-tight">
-                        Ask any career, love, or life direction query analyzed against your personal chart aspects.
-                      </p>
-                    </div>
-
-                    <div className="rounded-xl bg-[#1A1533] p-2.5 border border-[#2E2752] space-y-1">
-                      <div className="font-semibold text-[#EDE9FA] flex items-center gap-1">
-                        <span>🔒</span> Cloud Dossier
-                      </div>
-                      <p className="text-[#A59FC8] leading-tight">
-                        Sign in with Google to securely store and retrieve your birth chart records and dossier anytime.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
+          <section className="space-y-1.5 text-center pt-1">
+            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#EDE9FA]">
+              Astrology App
+            </h1>
+            <p className="text-xs text-[#A59FC8] leading-relaxed max-w-sm mx-auto">
+              Discover your exact cosmic blueprint. Calculate your natal birth chart, rising sign (ascendant), and personalized planetary insights.
+            </p>
           </section>
-        )}
-
-        {/* Backend Server URL Status Banner (Homepage) */}
-        {tab === "Home" && (
-          <div className="flex items-center justify-between rounded-xl border border-[#2E2752] bg-[#16122E]/80 px-3.5 py-2 text-xs shadow-sm">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-[#241D42] text-xs">
-                ⚡
-              </span>
-              <div className="flex flex-col min-w-0">
-                <span className="text-[10px] uppercase tracking-wider text-[#A59FC8] font-medium">Backend URL</span>
-                <a
-                  href={BACKEND_URL}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="font-mono text-[11px] text-[#E8B86B] hover:text-[#FFE2A4] hover:underline truncate transition-colors"
-                  title={`Open backend server: ${BACKEND_URL}`}
-                >
-                  {BACKEND_URL}
-                </a>
-              </div>
-            </div>
-            <div className="flex items-center gap-1.5 shrink-0 pl-2">
-              <span
-                className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-medium border transition-colors ${
-                  serverOnline === true
-                    ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
-                    : serverOnline === false
-                    ? "bg-rose-500/10 text-rose-400 border-rose-500/30"
-                    : "bg-amber-500/10 text-amber-300 border-amber-500/30"
-                }`}
-              >
-                <span
-                  className={`h-1.5 w-1.5 rounded-full ${
-                    serverOnline === true
-                      ? "bg-emerald-400 animate-pulse"
-                      : serverOnline === false
-                      ? "bg-rose-400"
-                      : "bg-amber-400"
-                  }`}
-                />
-                {serverOnline === true ? "Online" : serverOnline === false ? "Offline" : "Connecting"}
-              </span>
-            </div>
-          </div>
         )}
 
         {tab === "Home" && step === "form" && (
