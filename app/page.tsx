@@ -2028,7 +2028,7 @@ export default function App() {
                     )}
                   </button>
 
-                  <div className="relative flex items-center justify-center">
+                  {/* <div className="relative flex items-center justify-center">
                     <div className="absolute inset-0 flex items-center">
                       <div className="w-full border-t border-[#2E2752]" />
                     </div>
@@ -2047,7 +2047,7 @@ export default function App() {
                     onKeyDown={e => {
                       if (e.key === "Enter" && isEmailValid) setFormStep(2);
                     }}
-                  />
+                  /> */}
 
                   {isGoogleLogin && (
                     <div className="flex items-center gap-2 rounded-lg bg-[#273B2F] border border-[#3A6B4C] px-3 py-2 text-xs text-[#8EF2B0]">
