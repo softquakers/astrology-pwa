@@ -460,3 +460,7 @@ export async function recordAttachScreen(
     return { success: true, message: "Saved locally" };
   }
 }
+
+export { trackFunnelStep, getVisitorId } from "./funnel";
+export type { FunnelStep } from "./funnel";
+

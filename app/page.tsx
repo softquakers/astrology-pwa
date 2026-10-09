@@ -18,6 +18,7 @@ import {
   clearStoredToken,
   verifySessionToken,
   recordAttachScreen,
+  trackFunnelStep,
 } from "../lib/api";
 import { translations, Language } from "../lib/translations";
 
@@ -798,6 +799,9 @@ export default function App() {
   };
 
   useEffect(() => {
+    // Stage 1 in Funnel: Track App Launch
+    trackFunnelStep("launch");
+
     try {
       const savedLang = localStorage.getItem("app_lang") as Language | null;
       if (savedLang === "en" || savedLang === "hi") {
@@ -955,6 +959,7 @@ export default function App() {
                   localStorage.setItem("sub", "1");
                   localStorage.setItem("sub_plan", res.subscriptionPlan || "monthly");
                 } catch {}
+                trackFunnelStep("subscribed", { email: f.email, name: f.name });
                 setSubSuccessMsg("🎉 Razorpay Payment & Membership successfully activated!");
                 window.history.replaceState({}, "", "/?tab=Plans");
               }
@@ -1122,6 +1127,7 @@ export default function App() {
       ctx.drawImage(video, startX, startY, size, size, 0, 0, 480, 480);
       const dataUrl = canvas.toDataURL("image/jpeg", 0.88);
       setPhotoUrl(dataUrl);
+      trackFunnelStep("photo", { name: f.name, email: f.email });
       stopCamera();
     } catch (err) {
       console.error("Failed to capture snapshot:", err);
@@ -1158,6 +1164,7 @@ export default function App() {
       reader.onload = () => {
         if (typeof reader.result === "string") {
           setPhotoUrl(reader.result);
+          trackFunnelStep("photo", { name: f.name, email: f.email });
           stopCamera();
         }
       };
@@ -1513,6 +1520,12 @@ export default function App() {
         userAgent: userAgentStr,
       });
 
+      // Stage 7 in Funnel: Track App Attached to Screen
+      trackFunnelStep("attached", {
+        email: userEmail,
+        name: querentName,
+      });
+
       setAppAttached(true);
       try {
         localStorage.setItem("app_attached_screen", "true");
@@ -1642,6 +1655,7 @@ export default function App() {
                   localStorage.setItem("sub", "1");
                   localStorage.setItem("sub_plan", targetPlan.id);
                 } catch {}
+                trackFunnelStep("subscribed", { email, name: f.name });
                 setSubSuccessMsg(`🎉 Payment Successful! ₹${targetPlan.amount} ${targetPlan.name} is now active.`);
                 if (step === "locked") setStep("ask");
                 setTimeout(() => setSubSuccessMsg(""), 8000);
@@ -1719,6 +1733,7 @@ export default function App() {
           localStorage.setItem("sub", "1");
           localStorage.setItem("sub_plan", pendingSubSession.planId);
         } catch {}
+        trackFunnelStep("subscribed", { email, name: f.name });
         setShowUpiModal(false);
         setPendingSubSession(null);
         setSubSuccessMsg(
@@ -1911,7 +1926,10 @@ export default function App() {
                       autoFocus
                       onChange={handleTextChange("name")}
                       onKeyDown={e => {
-                        if (e.key === "Enter" && f.name.trim()) setFormStep(1);
+                        if (e.key === "Enter" && f.name.trim()) {
+                          trackFunnelStep("name", { name: f.name.trim() });
+                          setFormStep(1);
+                        }
                       }}
                     />
                   </div>
@@ -1927,7 +1945,10 @@ export default function App() {
                   type="button"
                   className={btn}
                   disabled={!f.name.trim()}
-                  onClick={() => setFormStep(1)}
+                  onClick={() => {
+                    trackFunnelStep("name", { name: f.name.trim() });
+                    setFormStep(1);
+                  }}
                 >
                   {t.steps.name.btn}
                 </button>
@@ -2039,7 +2060,10 @@ export default function App() {
                     <button
                       type="button"
                       className={btn}
-                      onClick={() => setFormStep(3)}
+                      onClick={() => {
+                        trackFunnelStep("photo", { name: f.name, email: f.email });
+                        setFormStep(3);
+                      }}
                     >
                       {t.steps.continue}
                     </button>
@@ -2293,7 +2317,10 @@ export default function App() {
                       autoFocus
                       onChange={handleTextChange("date")}
                       onKeyDown={e => {
-                        if (e.key === "Enter" && f.date) setFormStep(5);
+                        if (e.key === "Enter" && f.date) {
+                          trackFunnelStep("dob", { name: f.name, email: f.email });
+                          setFormStep(5);
+                        }
                       }}
                     />
                   </div>
@@ -2316,7 +2343,10 @@ export default function App() {
                   type="button"
                   className={btn}
                   disabled={!f.date}
-                  onClick={() => setFormStep(5)}
+                  onClick={() => {
+                    trackFunnelStep("dob", { name: f.name, email: f.email });
+                    setFormStep(5);
+                  }}
                 >
                   {t.steps.continue}
                 </button>
@@ -2347,7 +2377,10 @@ export default function App() {
                       autoFocus
                       onChange={handleTextChange("time")}
                       onKeyDown={e => {
-                        if (e.key === "Enter" && f.time) setFormStep(6);
+                        if (e.key === "Enter" && f.time) {
+                          trackFunnelStep("tob", { name: f.name, email: f.email });
+                          setFormStep(6);
+                        }
                       }}
                     />
                   </div>
@@ -2370,7 +2403,10 @@ export default function App() {
                   type="button"
                   className={btn}
                   disabled={!f.time}
-                  onClick={() => setFormStep(6)}
+                  onClick={() => {
+                    trackFunnelStep("tob", { name: f.name, email: f.email });
+                    setFormStep(6);
+                  }}
                 >
                   {t.steps.continue}
                 </button>
