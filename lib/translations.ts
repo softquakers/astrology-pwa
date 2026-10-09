@@ -44,6 +44,18 @@ export interface TranslationDictionary {
       skip: string;
       cameraError: string;
     };
+    faceReading: {
+      label: string;
+      badge: string;
+      title: string;
+      desc: (x: string, y: string) => string;
+      rawText: (x: string, y: string) => string;
+      highlightMonthX: string;
+      highlightMonthY: string;
+      verifiedGoogleBadge: string;
+      faceAnalyzedBadge: string;
+      btn: string;
+    };
     dob: {
       label: string;
       badge: string;
@@ -272,6 +284,20 @@ export const translations: Record<Language, TranslationDictionary> = {
         flip: "Flip Camera",
         skip: "Skip photo for now",
         cameraError: "Camera permission denied or not available.",
+      },
+      faceReading: {
+        label: "Face Reading",
+        badge: "Vedic Physiognomy",
+        title: "Face Reading & Transit Insights",
+        desc: (x: string, y: string) =>
+          `your life may get changed in coming years you may have new relations and new opportunities it llok like you are born in month ${x} or month ${y} based on your face reading`,
+        rawText: (x: string, y: string) =>
+          `your life may get changed in coming years you may have new relations and new opportunities it llok like you are born in month ${x} or month ${y} based on your face reading`,
+        highlightMonthX: "Predicted Birth Month",
+        highlightMonthY: "Harmonic 6-Month Cycle",
+        verifiedGoogleBadge: "Verified with Google Account",
+        faceAnalyzedBadge: "Vedic Face Analysis Complete",
+        btn: "Continue →",
       },
       dob: {
         label: "Birth Date",
@@ -522,6 +548,20 @@ export const translations: Record<Language, TranslationDictionary> = {
         flip: "कैमरा बदलें",
         skip: "फोटो अभी छोड़ें",
         cameraError: "कैमरा अनुमति अस्वीकृत या अनुपलब्ध है।",
+      },
+      faceReading: {
+        label: "मुख पठन",
+        badge: "मुख सामुद्रिक एवं आभामंडल",
+        title: "चेहरा पठन एवं जीवन गोचर",
+        desc: (x: string, y: string) =>
+          `आने वाले वर्षों में आपका जीवन बदल सकता है, आपके नए रिश्ते और नए अवसर बन सकते हैं। आपके चेहरे के अध्ययन के आधार पर ऐसा प्रतीत होता है कि आपका जन्म ${x} के महीने या ${y} के महीने में हुआ है।`,
+        rawText: (x: string, y: string) =>
+          `आने वाले वर्षों में आपका जीवन बदल सकता है, आपके नए रिश्ते और नए अवसर बन सकते हैं। आपके चेहरे के अध्ययन के आधार पर ऐसा प्रतीत होता है कि आपका जन्म ${x} के महीने या ${y} के महीने में हुआ है।`,
+        highlightMonthX: "अनुमानित जन्म माह",
+        highlightMonthY: "षडमासिक पूरक चक्र",
+        verifiedGoogleBadge: "गूगल खाते से सत्यापित",
+        faceAnalyzedBadge: "मुख सामुद्रिक विश्लेषण संपन्न",
+        btn: "आगे बढ़ें →",
       },
       dob: {
         label: "जन्म तिथि",

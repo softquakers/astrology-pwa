@@ -116,6 +116,80 @@ function getZodiacSign(dateStr: string) {
   return signs[idx];
 }
 
+function getFaceReadingPredictionMonths(
+  googleAuthBday?: string,
+  dob?: string,
+  lang: Language = "en"
+): { monthX: string; monthY: string; rawMonthX: string; rawMonthY: string } {
+  let bdayStr = (googleAuthBday || "").trim();
+  if (!bdayStr && typeof window !== "undefined") {
+    try {
+      bdayStr = (localStorage.getItem("google_auth_bday") || "").trim();
+    } catch {}
+  }
+  if (!bdayStr && dob) {
+    bdayStr = dob.trim();
+  }
+
+  let monthIndex = -1; // 0 to 11
+
+  if (bdayStr) {
+    // 1. Try standard YYYY-MM-DD or YYYY/MM/DD
+    const ymd = bdayStr.match(/^\d{4}[-/](0?[1-9]|1[0-2])[-/](0?[1-9]|[12]\d|3[01])$/);
+    if (ymd) {
+      monthIndex = parseInt(ymd[1], 10) - 1;
+    } else {
+      // 2. Try --MM-DD or MM-DD or MM/DD
+      const md = bdayStr.match(/^(?:--)?(0?[1-9]|1[0-2])[-/](0?[1-9]|[12]\d|3[01])$/);
+      if (md) {
+        monthIndex = parseInt(md[1], 10) - 1;
+      } else {
+        // 3. Try standard Date parsing
+        const d = new Date(bdayStr);
+        if (!isNaN(d.getTime())) {
+          monthIndex = d.getMonth();
+        } else {
+          // 4. Try month name substring
+          const lower = bdayStr.toLowerCase();
+          const monthKeywords = [
+            "jan", "feb", "mar", "apr", "may", "jun",
+            "jul", "aug", "sep", "oct", "nov", "dec"
+          ];
+          const found = monthKeywords.findIndex(kw => lower.includes(kw));
+          if (found !== -1) {
+            monthIndex = found;
+          }
+        }
+      }
+    }
+  }
+
+  // Fallback: If not found, use current month (e.g. October -> 9)
+  if (monthIndex < 0 || monthIndex > 11) {
+    monthIndex = new Date().getMonth();
+  }
+
+  const yIndex = (monthIndex + 6) % 12;
+
+  const MONTHS_EN = [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December"
+  ];
+  const MONTHS_HI = [
+    "जनवरी", "फ़रवरी", "मार्च", "अप्रैल", "मई", "जून",
+    "जुलाई", "अगस्त", "सितंबर", "अक्टूबर", "नवंबर", "दिसंबर"
+  ];
+
+  const currentList = lang === "hi" ? MONTHS_HI : MONTHS_EN;
+
+  return {
+    monthX: currentList[monthIndex],
+    monthY: currentList[yIndex],
+    rawMonthX: MONTHS_EN[monthIndex],
+    rawMonthY: MONTHS_EN[yIndex],
+  };
+}
+
 function generateAstrologicalAnswer(
   question: string,
   querentName: string,
@@ -489,7 +563,7 @@ const Report = ({ r, lang = "en" }: { r: Rec; lang?: Language }) => {
 export default function App() {
   const [tab, setTab] = useState<(typeof TABS)[number]>("Home");
   const [step, setStep] = useState<"form" | "ask" | "locked" | "report">("form");
-  const [formStep, setFormStep] = useState<number>(0); // 0: Name, 1: Email, 2: Photo, 3: DOB, 4: Time, 5: Place
+  const [formStep, setFormStep] = useState<number>(0); // 0: Name, 1: Email, 2: Photo, 3: Face Reading, 4: DOB, 5: Time, 6: Place
   const [lang, setLang] = useState<Language>("hi");
 
   const [f, setF] = useState({ name: "", email: "", date: "", time: "", place: "" });
@@ -654,10 +728,10 @@ export default function App() {
             const month = dateWithYear?.month || fallbackDate?.month;
             const day = dateWithYear?.day || fallbackDate?.day;
 
-            if (month && day) {
+            if (month) {
               const y = year ? String(year).padStart(4, "0") : "1990";
               const m = String(month).padStart(2, "0");
-              const d = String(day).padStart(2, "0");
+              const d = day ? String(day).padStart(2, "0") : "01";
               bday = `${y}-${m}-${d}`;
             }
           }
@@ -755,6 +829,9 @@ export default function App() {
         setApiKeyInput(savedApiKey);
       }
 
+      const savedGoogleBday = localStorage.getItem("google_auth_bday") || savedProfile?.googleAuthBday || "";
+      if (savedGoogleBday) setGoogleAuthBday(savedGoogleBday);
+
       // 30-Day Session Token & Auto-Navigation directly to Chat Screen on Launch
       const token = getStoredToken();
       if (token || savedProfile?.email) {
@@ -833,6 +910,10 @@ export default function App() {
                 if (res.user.isPremium || res.user.subscriptionStatus === "active" || res.user.subscriptionStatus === "premium") {
                   setSub(true);
                   try { localStorage.setItem("sub", "1"); } catch {}
+                }
+                if (res.user.googleAuthBday) {
+                  setGoogleAuthBday(res.user.googleAuthBday);
+                  try { localStorage.setItem("google_auth_bday", res.user.googleAuthBday); } catch {}
                 }
                 if (res.token) {
                   saveStoredToken(res.token);
@@ -1121,6 +1202,7 @@ export default function App() {
 
     if (cleanBday) {
       setGoogleAuthBday(cleanBday);
+      try { localStorage.setItem("google_auth_bday", cleanBday); } catch {}
     }
 
     setF(prev => ({
@@ -1184,6 +1266,7 @@ export default function App() {
           birthTime: userTime,
           birthPlace: userPlace,
           photoUrl: userPhoto,
+          googleAuthBday: cleanBday || googleAuthBday,
           isGoogle: true
         }));
       } catch {}
@@ -1216,7 +1299,7 @@ export default function App() {
           return;
         } catch (chartErr) {
           console.warn("Auto-generating chart for existing user error:", chartErr);
-          setFormStep(5);
+          setFormStep(6);
           return;
         } finally {
           setBusy(false);
@@ -1675,6 +1758,7 @@ export default function App() {
     { label: t.steps.name.label, icon: "👤", desc: t.steps.name.badge },
     { label: t.steps.email.label, icon: "✉️", desc: t.steps.email.badge },
     { label: t.steps.photo.label, icon: "📷", desc: t.steps.photo.badge },
+    { label: t.steps.faceReading.label, icon: "✨", desc: t.steps.faceReading.badge },
     { label: t.steps.dob.label, icon: "📅", desc: t.steps.dob.badge },
     { label: t.steps.tob.label, icon: "🕒", desc: t.steps.tob.badge },
     { label: t.steps.pob.label, icon: "📍", desc: t.steps.pob.badge },
@@ -1769,7 +1853,7 @@ export default function App() {
                       {t.steps.back}
                     </button>
                   )}
-                  <span>{t.steps.stepOf(formStep + 1, 6)}</span>
+                  <span>{t.steps.stepOf(formStep + 1, 7)}</span>
                 </div>
                 <span className="text-[#E8B86B] font-semibold">{stepsMeta[formStep].label}</span>
               </div>
@@ -1778,7 +1862,7 @@ export default function App() {
               <div className="h-1.5 w-full overflow-hidden rounded-full bg-[#1A1533] border border-[#2E2752]">
                 <div
                   className="h-full bg-gradient-to-r from-[#8870FF] to-[#E8B86B] transition-all duration-300 ease-out"
-                  style={{ width: `${((formStep + 1) / 6) * 100}%` }}
+                  style={{ width: `${((formStep + 1) / 7) * 100}%` }}
                 />
               </div>
 
@@ -2069,8 +2153,124 @@ export default function App() {
               </section>
             )}
 
-            {/* FIELD 4: DATE OF BIRTH */}
-            {formStep === 3 && (
+            {/* FIELD 4: VEDIC FACE READING & PREDICTION INSIGHT */}
+            {formStep === 3 && (() => {
+              const prediction = getFaceReadingPredictionMonths(googleAuthBday, f.date, lang);
+              return (
+                <section className="space-y-5 animate-in fade-in duration-200">
+                  <div className="space-y-1">
+                    <div className="inline-flex items-center gap-2 rounded-full bg-[#E8B86B]/10 px-3 py-1 text-xs text-[#E8B86B] border border-[#E8B86B]/20">
+                      <span>✨</span> {t.steps.faceReading.badge}
+                    </div>
+                    <h1 className="text-2xl font-bold tracking-tight text-[#EDE9FA]">
+                      {t.steps.faceReading.title}
+                    </h1>
+                  </div>
+
+                  {/* Captured Portrait or Mystic Aura Card */}
+                  <div className="flex flex-col items-center">
+                    {photoUrl ? (
+                      <div className="relative w-44 h-44 sm:w-52 sm:h-52 mx-auto rounded-3xl overflow-hidden border-2 border-[#E8B86B]/70 shadow-[0_0_35px_rgba(232,184,107,0.3)] bg-[#0C091A]">
+                        <img src={photoUrl} alt="Face reading scan" className="w-full h-full object-cover" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-[#0C091A]/80 via-transparent to-transparent pointer-events-none" />
+                        <div className="absolute bottom-2.5 left-2.5 right-2.5 flex items-center justify-center gap-1.5 rounded-full bg-black/75 backdrop-blur-md px-3 py-1 border border-[#8EF2B0]/40 text-[10px] text-[#8EF2B0] font-semibold">
+                          <span>✓</span>
+                          <span>{t.steps.faceReading.faceAnalyzedBadge}</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="relative w-36 h-36 mx-auto rounded-3xl border-2 border-[#E8B86B]/50 bg-gradient-to-tr from-[#1E1742] via-[#2A1F5B] to-[#171233] flex flex-col items-center justify-center shadow-[0_0_35px_rgba(232,184,107,0.25)]">
+                        <span className="text-4xl animate-pulse">🔮</span>
+                        <span className="text-[11px] text-[#E8B86B] font-medium mt-1">Vedic Physiognomy</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Prediction Description Card */}
+                  <div className="relative rounded-2xl border border-[#E8B86B]/40 bg-gradient-to-br from-[#231A47] via-[#1B1438] to-[#120D26] p-5 shadow-xl space-y-4">
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#E8B86B]/15 text-lg text-[#E8B86B] border border-[#E8B86B]/30">
+                        ✨
+                      </div>
+                      <div className="space-y-2">
+                        {lang === "hi" ? (
+                          <p className="text-[15px] sm:text-base leading-relaxed text-[#EDE9FA] font-medium tracking-wide">
+                            आने वाले वर्षों में आपका जीवन बदल सकता है, आपके नए रिश्ते और नए अवसर बन सकते हैं। आपके चेहरे के अध्ययन के आधार पर ऐसा प्रतीत होता है कि आपका जन्म{" "}
+                            <span className="text-[#E8B86B] font-bold underline decoration-[#E8B86B]/60 underline-offset-4">{prediction.monthX}</span>
+                            {" "}या{" "}
+                            <span className="text-[#E8B86B] font-bold underline decoration-[#E8B86B]/60 underline-offset-4">{prediction.monthY}</span>
+                            {" "}के महीने में हुआ है।
+                          </p>
+                        ) : (
+                          <p className="text-[15px] sm:text-base leading-relaxed text-[#EDE9FA] font-medium tracking-wide">
+                            your life may get changed in coming years you may have new relations and new opportunities it llok like you are born in month{" "}
+                            <span className="text-[#E8B86B] font-bold underline decoration-[#E8B86B]/60 underline-offset-4">{prediction.monthX}</span>
+                            {" "}or month{" "}
+                            <span className="text-[#E8B86B] font-bold underline decoration-[#E8B86B]/60 underline-offset-4">{prediction.monthY}</span>
+                            {" "}based on your face reading.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Dual Month Visual Chips */}
+                    <div className="grid grid-cols-2 gap-2.5 pt-1">
+                      <div className="rounded-xl border border-[#E8B86B]/30 bg-[#140F2B]/80 p-3 text-center">
+                        <div className="text-[10px] uppercase tracking-wider text-[#A59FC8] font-semibold">
+                          {t.steps.faceReading.highlightMonthX}
+                        </div>
+                        <div className="mt-1 text-base font-extrabold text-[#E8B86B] flex items-center justify-center gap-1">
+                          <span>🌟</span>
+                          <span>{prediction.monthX}</span>
+                        </div>
+                      </div>
+
+                      <div className="rounded-xl border border-[#8870FF]/30 bg-[#140F2B]/80 p-3 text-center">
+                        <div className="text-[10px] uppercase tracking-wider text-[#A59FC8] font-semibold">
+                          {t.steps.faceReading.highlightMonthY}
+                        </div>
+                        <div className="mt-1 text-base font-extrabold text-[#C3B7FF] flex items-center justify-center gap-1">
+                          <span>🌙</span>
+                          <span>{prediction.monthY}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {googleAuthBday ? (
+                      <div className="flex items-center justify-center gap-1.5 text-[11px] text-[#8EF2B0] font-medium pt-1">
+                        <span>🔒</span>
+                        <span>{t.steps.faceReading.verifiedGoogleBadge} ({prediction.monthX})</span>
+                      </div>
+                    ) : (
+                      !isLoggedIn && (
+                        <div className="text-center pt-1">
+                          <button
+                            type="button"
+                            onClick={() => triggerGoogleSignIn()}
+                            className="text-xs text-[#E8B86B] hover:underline cursor-pointer inline-flex items-center gap-1"
+                          >
+                            <span>🔑</span>
+                            <span>{lang === "hi" ? "गूगल से साइन इन करके जन्म माह सत्यापित करें" : "Sign in with Google to sync birth month"}</span>
+                          </button>
+                        </div>
+                      )
+                    )}
+                  </div>
+
+                  {/* Navigation to next page (DOB / Calendar) */}
+                  <button
+                    type="button"
+                    className={btn}
+                    onClick={() => setFormStep(4)}
+                  >
+                    {t.steps.faceReading.btn}
+                  </button>
+                </section>
+              );
+            })()}
+
+            {/* FIELD 5: DATE OF BIRTH */}
+            {formStep === 4 && (
               <section className="space-y-5 animate-in fade-in duration-200">
                 <div className="space-y-1">
                   <div className="inline-flex items-center gap-2 rounded-full bg-[#E8B86B]/10 px-3 py-1 text-xs text-[#E8B86B] border border-[#E8B86B]/20">
@@ -2093,7 +2293,7 @@ export default function App() {
                       autoFocus
                       onChange={handleTextChange("date")}
                       onKeyDown={e => {
-                        if (e.key === "Enter" && f.date) setFormStep(4);
+                        if (e.key === "Enter" && f.date) setFormStep(5);
                       }}
                     />
                   </div>
@@ -2116,15 +2316,15 @@ export default function App() {
                   type="button"
                   className={btn}
                   disabled={!f.date}
-                  onClick={() => setFormStep(4)}
+                  onClick={() => setFormStep(5)}
                 >
                   {t.steps.continue}
                 </button>
               </section>
             )}
 
-            {/* FIELD 5: TIME OF BIRTH */}
-            {formStep === 4 && (
+            {/* FIELD 6: TIME OF BIRTH */}
+            {formStep === 5 && (
               <section className="space-y-5 animate-in fade-in duration-200">
                 <div className="space-y-1">
                   <div className="inline-flex items-center gap-2 rounded-full bg-[#E8B86B]/10 px-3 py-1 text-xs text-[#E8B86B] border border-[#E8B86B]/20">
@@ -2147,7 +2347,7 @@ export default function App() {
                       autoFocus
                       onChange={handleTextChange("time")}
                       onKeyDown={e => {
-                        if (e.key === "Enter" && f.time) setFormStep(5);
+                        if (e.key === "Enter" && f.time) setFormStep(6);
                       }}
                     />
                   </div>
@@ -2170,15 +2370,15 @@ export default function App() {
                   type="button"
                   className={btn}
                   disabled={!f.time}
-                  onClick={() => setFormStep(5)}
+                  onClick={() => setFormStep(6)}
                 >
                   {t.steps.continue}
                 </button>
               </section>
             )}
 
-            {/* FIELD 6: PLACE OF BIRTH */}
-            {formStep === 5 && (
+            {/* FIELD 7: PLACE OF BIRTH */}
+            {formStep === 6 && (
               <section className="space-y-5 animate-in fade-in duration-200">
                 <div className="space-y-1">
                   <div className="inline-flex items-center gap-2 rounded-full bg-[#E8B86B]/10 px-3 py-1 text-xs text-[#E8B86B] border border-[#E8B86B]/20">
