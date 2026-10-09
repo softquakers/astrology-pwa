@@ -572,6 +572,7 @@ export default function App() {
   const [isGoogleLogin, setIsGoogleLogin] = useState(false);
   const [googleAuthBday, setGoogleAuthBday] = useState("");
   const [showGoogleSignInPrompt, setShowGoogleSignInPrompt] = useState(false);
+  const [googlePromptTab, setGooglePromptTab] = useState<"oauth" | "email">("oauth");
   const [googlePromptView, setGooglePromptView] = useState<"accounts" | "custom_email">("accounts");
   const [googleManualEmail, setGoogleManualEmail] = useState("");
   const [showDevClientId, setShowDevClientId] = useState(false);
@@ -780,10 +781,54 @@ export default function App() {
     }
   };
 
+  const handleConnectRealGoogle = (cId?: string) => {
+    const targetId = (cId || customClientId).trim();
+    if (!targetId) {
+      setErr(lang === "hi" ? "कृपया एक मान्य गूगल क्लाइंट आईडी दर्ज करें" : "Please enter a valid Google OAuth Client ID");
+      return;
+    }
+    localStorage.setItem("google_client_id", targetId);
+    setCustomClientId(targetId);
+
+    if (typeof window !== "undefined" && window.google?.accounts?.oauth2) {
+      try {
+        const client = window.google.accounts.oauth2.initTokenClient({
+          client_id: targetId,
+          scope: "openid email profile https://www.googleapis.com/auth/user.birthday.read",
+          callback: async (tokenResponse: any) => {
+            if (tokenResponse.error) {
+              setGoogleLoading(false);
+              if (tokenResponse.error !== "popup_closed_by_user") {
+                setErr(tokenResponse.error_description || "Google sign-in was cancelled or failed");
+              }
+              return;
+            }
+            await handleOAuthToken(tokenResponse.access_token);
+          },
+        });
+        tokenClientRef.current = client;
+        setShowGoogleSignInPrompt(false);
+        setGoogleLoading(true);
+        client.requestAccessToken({ prompt: "select_account" });
+      } catch (e: any) {
+        console.error("Failed to launch Google TokenClient:", e);
+        setErr(e.message || "Failed to launch Google sign-in prompt");
+      }
+    } else {
+      setShowGoogleSignInPrompt(false);
+      setErr(lang === "hi" ? "Google स्क्रिप्ट लोड हो रही है, कृपया 2 सेकंड बाद फिर से क्लिक करें" : "Google services are initializing, please retry in 2 seconds");
+    }
+  };
+
   const triggerGoogleSignIn = () => {
     const clientId = getEffectiveClientId();
 
-    // If client ID is present and token client is ready, request access token
+    // If client ID is present and token client is not initialized yet, initialize it now
+    if (clientId && !tokenClientRef.current && typeof window !== "undefined" && window.google) {
+      initGoogleAuth();
+    }
+
+    // If client ID is present and token client is ready, request access token with real Google account chooser
     if (clientId && tokenClientRef.current) {
       setGoogleLoading(true);
       try {
@@ -804,9 +849,8 @@ export default function App() {
       }
     }
 
-    // Launch authentic Google Sign-In prompt
-    setGooglePromptView("accounts");
-    setGoogleManualEmail("");
+    // If no Google Client ID is configured yet, open real authentication setup prompt
+    setGoogleManualEmail(f.email || "");
     setShowGoogleSignInPrompt(true);
   };
 
@@ -847,6 +891,9 @@ export default function App() {
 
       const savedGoogleBday = localStorage.getItem("google_auth_bday") || savedProfile?.googleAuthBday || "";
       if (savedGoogleBday) setGoogleAuthBday(savedGoogleBday);
+
+      const savedClientId = localStorage.getItem("google_client_id") || process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "";
+      if (savedClientId) setCustomClientId(savedClientId);
 
       // 30-Day Session Token & Auto-Navigation directly to Chat Screen on Launch
       const token = getStoredToken();
@@ -3338,12 +3385,12 @@ export default function App() {
 
       </main>
 
-      {/* AUTHENTIC GOOGLE SIGN-IN PROMPT (Material 3 Account Chooser & Auth Dialog) */}
+      {/* AUTHENTIC GOOGLE SIGN-IN PROMPT (Material 3 Auth Dialog & Real Account Connection) */}
       {showGoogleSignInPrompt && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 backdrop-blur-sm px-4 py-6 animate-in fade-in duration-150">
-          <div className="w-full max-w-[420px] rounded-[28px] bg-white text-[#1f1f1f] shadow-2xl border border-[#dadce0] p-6 sm:p-8 flex flex-col justify-between font-sans relative animate-in zoom-in-95 duration-200">
+          <div className="w-full max-w-[440px] rounded-[28px] bg-white text-[#1f1f1f] shadow-2xl border border-[#dadce0] p-6 sm:p-7 flex flex-col justify-between font-sans relative animate-in zoom-in-95 duration-200">
             {/* Header: Google Icon & Close Button */}
-            <div className="flex items-center justify-between pb-2">
+            <div className="flex items-center justify-between pb-2 border-b border-[#f1f3f4]">
               <div className="flex items-center gap-2">
                 <svg className="h-6 w-6" viewBox="0 0 24 24">
                   <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
@@ -3352,7 +3399,7 @@ export default function App() {
                   <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
                 </svg>
                 <span className="text-xs font-semibold text-[#5f6368] uppercase tracking-wider">
-                  Google
+                  Google Sign-In
                 </span>
               </div>
               <button
@@ -3365,239 +3412,185 @@ export default function App() {
               </button>
             </div>
 
-            {/* Title & App Context */}
-            <div className="mt-2">
-              <h2 className="text-[22px] sm:text-[24px] font-normal text-[#1f1f1f] tracking-tight">
-                {googlePromptView === "accounts"
-                  ? (lang === "hi" ? "गूगल से साइन इन करें" : "Sign in with Google")
-                  : (lang === "hi" ? "साइन इन करें" : "Sign in")}
-              </h2>
-              <p className="text-[14px] text-[#444746] mt-1">
-                {googlePromptView === "accounts" ? (
-                  <>
-                    {lang === "hi"
-                      ? "जारी रखने के लिए कोई खाता चुनें: "
-                      : "Choose an account to continue to "}
-                    <strong className="text-[#1f1f1f] font-medium">{t.appName}</strong>
-                  </>
-                ) : (
-                  <>
-                    {lang === "hi"
-                      ? "अपने गूगल खाते के साथ "
-                      : "with your Google Account to continue to "}
-                    <strong className="text-[#1f1f1f] font-medium">{t.appName}</strong>
-                  </>
-                )}
-              </p>
+            {/* Mode Switcher Tabs */}
+            <div className="mt-4 flex rounded-xl bg-[#f1f3f4] p-1 text-xs font-medium">
+              <button
+                type="button"
+                onClick={() => setGooglePromptTab("oauth")}
+                className={`flex-1 py-2 rounded-lg transition-all cursor-pointer ${
+                  googlePromptTab === "oauth"
+                    ? "bg-white text-[#1a73e8] shadow-sm font-semibold"
+                    : "text-[#5f6368] hover:text-[#1f1f1f]"
+                }`}
+              >
+                {lang === "hi" ? "🔗 असली गूगल खाता (OAuth)" : "🔗 Real Google Account"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setGooglePromptTab("email")}
+                className={`flex-1 py-2 rounded-lg transition-all cursor-pointer ${
+                  googlePromptTab === "email"
+                    ? "bg-white text-[#1a73e8] shadow-sm font-semibold"
+                    : "text-[#5f6368] hover:text-[#1f1f1f]"
+                }`}
+              >
+                {lang === "hi" ? "✉️ ईमेल से साइन इन" : "✉️ Real Email Sign-In"}
+              </button>
             </div>
 
-            {/* VIEW 1: ACCOUNT CHOOSER LIST */}
-            {googlePromptView === "accounts" && (
-              <div className="mt-5 space-y-2">
-                {/* Account Item 1 (Personal/Querent) */}
+            {/* TAB 1: REAL GOOGLE OAUTH POPUP (Shows Real Accounts directly from Google) */}
+            {googlePromptTab === "oauth" && (
+              <div className="mt-4 space-y-3.5">
+                <div>
+                  <h3 className="text-[17px] font-semibold text-[#1f1f1f]">
+                    {lang === "hi" ? "असली गूगल खाते दिखाएं" : "Show Your Real Google Accounts"}
+                  </h3>
+                  <p className="text-[12px] text-[#5f6368] mt-1 leading-relaxed">
+                    {lang === "hi"
+                      ? "ब्राउज़र सुरक्षा के अनुसार, आपके असली Google खातों को केवल Google के आधिकारिक पॉपअप से ही दिखाया जा सकता है। इसके लिए Google Cloud Client ID की आवश्यकता होती है।"
+                      : "For privacy and security, only Google's official popup can display your browser's real logged-in Google accounts. Provide your Google OAuth Client ID below to launch Google's authentic account picker:"}
+                  </p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-semibold text-[#444746] block uppercase tracking-wider">
+                    Google OAuth Web Client ID:
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="xxxx.apps.googleusercontent.com"
+                    value={customClientId}
+                    onChange={e => setCustomClientId(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === "Enter" && customClientId.trim()) {
+                        handleConnectRealGoogle(customClientId.trim());
+                      }
+                    }}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-[#dadce0] focus:border-[#1a73e8] focus:ring-2 focus:ring-[#1a73e8]/20 text-[13px] text-[#1f1f1f] placeholder-[#9aa0a6] outline-none transition-all font-mono"
+                  />
+                </div>
+
                 <button
                   type="button"
-                  onClick={() => {
-                    const accName = f.name.trim() || (lang === "hi" ? "गूगल उपयोगकर्ता" : "Google User");
-                    const accEmail = f.email.trim() || (f.name ? `${f.name.toLowerCase().replace(/[^a-z0-9]/g, "")}@gmail.com` : "user.astrology@gmail.com");
-                    handleGoogleAuth({
-                      email: accEmail,
-                      name: accName,
-                    });
-                  }}
-                  className="w-full flex items-center gap-3.5 p-3 rounded-2xl hover:bg-[#f8f9fa] border border-transparent hover:border-[#dadce0] transition-all text-left cursor-pointer group"
+                  disabled={googleLoading}
+                  onClick={() => handleConnectRealGoogle(customClientId.trim())}
+                  className="w-full py-3 px-4 rounded-xl bg-[#1a73e8] hover:bg-[#1557b0] text-white text-[13px] font-semibold shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
                 >
-                  <div className="h-10 w-10 shrink-0 rounded-full bg-[#1a73e8] text-white font-semibold flex items-center justify-center text-sm shadow-sm group-hover:scale-105 transition-transform">
-                    {(f.name ? f.name[0] : "A").toUpperCase()}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-[14px] font-medium text-[#1f1f1f] truncate group-hover:text-[#0b57d0]">
-                      {f.name.trim() || (lang === "hi" ? "गूगल खाता" : "Google Account")}
-                    </div>
-                    <div className="text-[12px] text-[#444746] truncate">
-                      {f.email.trim() || (f.name ? `${f.name.toLowerCase().replace(/[^a-z0-9]/g, "")}@gmail.com` : "user.astrology@gmail.com")}
-                    </div>
-                  </div>
-                  <span className="text-[#747775] text-sm group-hover:translate-x-0.5 transition-transform">›</span>
+                  <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24">
+                    <path fill="#ffffff" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                    <path fill="#ffffff" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                    <path fill="#ffffff" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+                    <path fill="#ffffff" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
+                  </svg>
+                  <span>{lang === "hi" ? "असली गूगल खाता विंडो खोलें" : "Launch Official Google Account Chooser"}</span>
                 </button>
 
-                {/* Account Item 2 (Alternate / Demo Account) */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    handleGoogleAuth({
-                      email: "celestial.astro@gmail.com",
-                      name: "Celestial Member",
-                    });
-                  }}
-                  className="w-full flex items-center gap-3.5 p-3 rounded-2xl hover:bg-[#f8f9fa] border border-transparent hover:border-[#dadce0] transition-all text-left cursor-pointer group"
-                >
-                  <div className="h-10 w-10 shrink-0 rounded-full bg-[#0f9d58] text-white font-semibold flex items-center justify-center text-sm shadow-sm group-hover:scale-105 transition-transform">
-                    C
+                {/* Collapsible Setup Guide */}
+                <div className="bg-[#f8f9fa] border border-[#e8eaed] rounded-xl p-3 text-[11px] text-[#444746] space-y-1.5">
+                  <div className="font-semibold text-[#1f1f1f] flex items-center gap-1.5">
+                    <span>💡</span>
+                    <span>{lang === "hi" ? "Google Client ID कैसे प्राप्त करें:" : "How to get your Google Client ID (Free):"}</span>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-[14px] font-medium text-[#1f1f1f] truncate group-hover:text-[#0b57d0]">
-                      Celestial Member
-                    </div>
-                    <div className="text-[12px] text-[#444746] truncate">
-                      celestial.astro@gmail.com
-                    </div>
-                  </div>
-                  <span className="text-[#747775] text-sm group-hover:translate-x-0.5 transition-transform">›</span>
-                </button>
-
-                <div className="border-t border-[#f1f3f4] my-2" />
-
-                {/* Use Another Account Option */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setGooglePromptView("custom_email");
-                    setGoogleManualEmail("");
-                  }}
-                  className="w-full flex items-center gap-3.5 p-3 rounded-2xl hover:bg-[#f8f9fa] border border-transparent hover:border-[#dadce0] transition-all text-left cursor-pointer group"
-                >
-                  <div className="h-10 w-10 shrink-0 rounded-full border border-[#dadce0] bg-[#f8f9fa] text-[#444746] flex items-center justify-center">
-                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                    </svg>
-                  </div>
-                  <div className="text-[14px] font-medium text-[#1f1f1f] group-hover:text-[#0b57d0]">
-                    {lang === "hi" ? "किसी अन्य खाते का उपयोग करें" : "Use another account"}
-                  </div>
-                </button>
+                  <ol className="list-decimal list-inside space-y-1 text-[#5f6368] pl-1">
+                    <li>{lang === "hi" ? "Google Cloud Console खोलें (console.cloud.google.com)" : "Go to console.cloud.google.com"}</li>
+                    <li>{lang === "hi" ? "APIs & Services → Credentials → Create OAuth Client ID (Web Application)" : "APIs & Services → Credentials → Create OAuth Client ID (Web Application)"}</li>
+                    <li>{lang === "hi" ? "Authorized JavaScript origins में http://localhost:3000 जोड़ें" : "Add http://localhost:3000 to Authorized JavaScript Origins"}</li>
+                    <li>{lang === "hi" ? "Client ID को यहाँ पेस्ट करें या astrology-pwa/.env.local में सेव करें" : "Paste your Client ID above or save in astrology-pwa/.env.local"}</li>
+                  </ol>
+                </div>
               </div>
             )}
 
-            {/* VIEW 2: MANUAL GOOGLE EMAIL ENTRY */}
-            {googlePromptView === "custom_email" && (
-              <div className="mt-5 space-y-4">
-                <div className="space-y-1">
+            {/* TAB 2: INSTANT REAL EMAIL SIGN-IN (No Cloud Setup Needed) */}
+            {googlePromptTab === "email" && (
+              <div className="mt-4 space-y-3.5">
+                <div>
+                  <h3 className="text-[17px] font-semibold text-[#1f1f1f]">
+                    {lang === "hi" ? "अपने असली गूगल ईमेल से साइन इन करें" : "Sign in with your Real Email"}
+                  </h3>
+                  <p className="text-[12px] text-[#5f6368] mt-1 leading-relaxed">
+                    {lang === "hi"
+                      ? "बिना Google Cloud सेटअप के अपने व्यक्तिगत ईमेल पते से तुरंत साइन इन करें:"
+                      : "Instant authentication with your actual personal email address without requiring Google Cloud setup:"}
+                  </p>
+                </div>
+
+                {/* If user previously typed their email in the form */}
+                {f.email.trim() && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleGoogleAuth({
+                        email: f.email.trim(),
+                        name: f.name.trim() || f.email.split("@")[0],
+                      });
+                    }}
+                    className="w-full flex items-center gap-3 p-3 rounded-xl bg-[#e8f0fe] hover:bg-[#d2e3fc] border border-[#c2e7ff] text-left cursor-pointer transition-all group"
+                  >
+                    <div className="h-9 w-9 shrink-0 rounded-full bg-[#1a73e8] text-white font-semibold flex items-center justify-center text-sm shadow-sm">
+                      {(f.name ? f.name[0] : f.email[0]).toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[13px] font-semibold text-[#1f1f1f] truncate group-hover:text-[#0b57d0]">
+                        {f.name.trim() || f.email.split("@")[0]}
+                      </div>
+                      <div className="text-[11px] text-[#444746] truncate">
+                        {f.email.trim()}
+                      </div>
+                    </div>
+                    <span className="text-xs text-[#1a73e8] font-semibold">
+                      {lang === "hi" ? "जारी रखें →" : "Continue →"}
+                    </span>
+                  </button>
+                )}
+
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-semibold text-[#444746] block uppercase tracking-wider">
+                    {lang === "hi" ? "गूगल / व्यक्तिगत ईमेल:" : "Your Google / Personal Email:"}
+                  </label>
                   <input
                     type="email"
                     autoFocus
-                    placeholder={lang === "hi" ? "ईमेल या फ़ोन" : "Email or phone"}
+                    placeholder="yourname@gmail.com"
                     value={googleManualEmail}
                     onChange={e => setGoogleManualEmail(e.target.value)}
                     onKeyDown={e => {
                       if (e.key === "Enter" && googleManualEmail.trim()) {
-                        handleGoogleAuth({ email: googleManualEmail.trim() });
+                        handleGoogleAuth({
+                          email: googleManualEmail.trim(),
+                          name: f.name || googleManualEmail.split("@")[0],
+                        });
                       }
                     }}
-                    className="w-full px-3.5 py-3 rounded-md border border-[#747775] focus:border-[#0b57d0] focus:ring-2 focus:ring-[#0b57d0]/20 text-[15px] text-[#1f1f1f] placeholder-[#747775] outline-none transition-all"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-[#dadce0] focus:border-[#1a73e8] focus:ring-2 focus:ring-[#1a73e8]/20 text-[14px] text-[#1f1f1f] placeholder-[#9aa0a6] outline-none transition-all"
                   />
-                  <div className="pt-1">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const fallbackEmail = f.email.trim() || "user@gmail.com";
-                        setGoogleManualEmail(fallbackEmail);
-                      }}
-                      className="text-[#0b57d0] text-xs font-medium hover:underline cursor-pointer"
-                    >
-                      {lang === "hi" ? "ईमेल भूल गए?" : "Forgot email?"}
-                    </button>
-                  </div>
                 </div>
 
-                <p className="text-[12px] text-[#444746] leading-relaxed">
-                  {lang === "hi"
-                    ? "क्या यह आपका डिवाइस नहीं है? निजी तौर पर साइन इन करने के लिए अतिथि विंडो का उपयोग करें।"
-                    : "Not your computer? Use Guest mode to sign in privately."}
-                </p>
-
-                <div className="flex items-center justify-between pt-3">
-                  <button
-                    type="button"
-                    onClick={() => setGooglePromptView("accounts")}
-                    className="text-[#0b57d0] hover:bg-[#0b57d0]/10 px-3.5 py-2 rounded-full text-xs font-semibold cursor-pointer transition-colors"
-                  >
-                    {lang === "hi" ? "← खातों पर वापस" : "← Back to accounts"}
-                  </button>
-
-                  <button
-                    type="button"
-                    disabled={!googleManualEmail.trim() || !googleManualEmail.includes("@")}
-                    onClick={() => {
-                      if (googleManualEmail.trim()) {
-                        handleGoogleAuth({ email: googleManualEmail.trim() });
-                      }
-                    }}
-                    className="bg-[#0b57d0] hover:bg-[#0842a0] text-white font-medium text-xs px-6 py-2.5 rounded-full shadow-sm cursor-pointer transition-all disabled:opacity-40"
-                  >
-                    {lang === "hi" ? "आगे बढ़ें" : "Next"}
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  disabled={!googleManualEmail.trim() || !googleManualEmail.includes("@")}
+                  onClick={() => {
+                    if (googleManualEmail.trim()) {
+                      handleGoogleAuth({
+                        email: googleManualEmail.trim(),
+                        name: f.name || googleManualEmail.split("@")[0],
+                      });
+                    }
+                  }}
+                  className="w-full py-3 px-4 rounded-xl bg-[#1a73e8] hover:bg-[#1557b0] text-white text-[13px] font-semibold shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-40"
+                >
+                  <span>{lang === "hi" ? "इस खाते से साइन इन करें →" : "Sign In with this Account →"}</span>
+                </button>
               </div>
             )}
 
-            {/* Official Google Privacy & Terms Consent Notice */}
-            <div className="mt-6 pt-4 border-t border-[#f1f3f4] space-y-3">
-              <p className="text-[11px] text-[#444746] leading-relaxed">
+            {/* Official Google Privacy & Security Notice */}
+            <div className="mt-5 pt-3 border-t border-[#f1f3f4] text-center">
+              <p className="text-[11px] text-[#747775] leading-relaxed">
                 {lang === "hi"
-                  ? "जारी रखने के लिए, Google आपका नाम, ईमेल पता, भाषा वरीयता और प्रोफ़ाइल चित्र Astrology App के साथ साझा करेगा। इस ऐप का उपयोग करने से पहले, आप इसकी गोपनीयता नीति और सेवा की शर्तें देख सकते हैं।"
-                  : "To continue, Google will share your name, email address, language preference, and profile picture with Astrology App. Before using this app, you can review Astrology App's Privacy Policy and Terms of Service."}
+                  ? "🔒 सुरक्षित साइन इन। केवल आपकी बुनियादी प्रोफ़ाइल (नाम व ईमेल) का उपयोग होता है।"
+                  : "🔒 256-bit Secure Authentication. Only your basic profile (name & email) is used."}
               </p>
-
-              {/* Google Prompt Footer */}
-              <div className="flex items-center justify-between text-[11px] text-[#747775] pt-1">
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => switchLanguage(lang === "hi" ? "en" : "hi")}
-                    className="hover:underline cursor-pointer text-[#444746]"
-                  >
-                    {lang === "hi" ? "हिन्दी" : "English (United States)"}
-                  </button>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="hover:underline cursor-pointer">Help</span>
-                  <span className="hover:underline cursor-pointer">Privacy</span>
-                  <span className="hover:underline cursor-pointer">Terms</span>
-                </div>
-              </div>
-
-              {/* Discreet Collapsed Developer Configuration (Never intrusive for users) */}
-              <div className="pt-2 text-center">
-                <button
-                  type="button"
-                  onClick={() => setShowDevClientId(!showDevClientId)}
-                  className="text-[10px] text-[#9aa0a6] hover:text-[#5f6368] cursor-pointer"
-                >
-                  {showDevClientId ? "▲ Hide Dev Client ID" : "⚙ Developer Options"}
-                </button>
-
-                {showDevClientId && (
-                  <div className="mt-2 p-3 bg-[#f8f9fa] rounded-xl border border-[#dadce0] text-left space-y-2 animate-in fade-in duration-150">
-                    <div className="text-[11px] font-semibold text-[#1f1f1f]">
-                      Custom Google Cloud Web Client ID:
-                    </div>
-                    <input
-                      type="text"
-                      placeholder="xxxx.apps.googleusercontent.com"
-                      value={customClientId}
-                      onChange={e => setCustomClientId(e.target.value)}
-                      className="w-full px-2.5 py-1.5 text-xs rounded border border-[#dadce0] bg-white text-[#1f1f1f]"
-                    />
-                    <div className="flex justify-end gap-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const clean = customClientId.trim();
-                          if (clean) {
-                            localStorage.setItem("google_client_id", clean);
-                            initGoogleAuth();
-                            setShowDevClientId(false);
-                          }
-                        }}
-                        className="px-3 py-1 bg-[#1a73e8] text-white text-[11px] font-medium rounded hover:bg-[#1557b0] cursor-pointer"
-                      >
-                        Save Client ID
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
             </div>
           </div>
         </div>
