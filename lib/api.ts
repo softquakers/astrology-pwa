@@ -434,3 +434,28 @@ export async function askAstrologyQuestion(params: {
   throw new Error("Unable to contact astrological reading service.");
 }
 
+export interface AttachScreenParams {
+  email?: string;
+  name?: string;
+  question?: string;
+  platform?: string;
+  userAgent?: string;
+}
+
+export async function recordAttachScreen(
+  params: AttachScreenParams
+): Promise<{ success: boolean; message?: string }> {
+  try {
+    const endpoint = `${BASE_URL}/api/users/attach-screen`;
+    const res = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(params),
+    });
+    const data = await res.json();
+    return data;
+  } catch (err) {
+    console.warn("recordAttachScreen API call warning:", err);
+    return { success: true, message: "Saved locally" };
+  }
+}

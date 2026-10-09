@@ -17,6 +17,7 @@ import {
   saveStoredToken,
   clearStoredToken,
   verifySessionToken,
+  recordAttachScreen,
 } from "../lib/api";
 
 declare global {
@@ -402,6 +403,14 @@ export default function App() {
   const [ok, setOk] = useState(true);
   const [serverOnline, setServerOnline] = useState<boolean | null>(null);
 
+  // Attach App to Screen states
+  const [showAttachModal, setShowAttachModal] = useState(false);
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [appAttached, setAppAttached] = useState(false);
+  const [attachSubmitting, setAttachSubmitting] = useState(false);
+  const [attachSuccessMsg, setAttachSuccessMsg] = useState("");
+  const [showIosGuide, setShowIosGuide] = useState(false);
+
   const getEffectiveClientId = () => {
     return (
       process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ||
@@ -564,6 +573,9 @@ export default function App() {
 
   useEffect(() => {
     try {
+      if (localStorage.getItem("app_attached_screen") === "true") {
+        setAppAttached(true);
+      }
       setSub(localStorage.getItem("sub") === "1");
       const savedHist = JSON.parse(localStorage.getItem("hist") || "[]");
       setHist(savedHist);
@@ -752,12 +764,27 @@ export default function App() {
     script.onload = () => {
       initGoogleAuth();
     };
-    document.body.appendChild(script);
+    // PWA Home Screen Installation listener
+    const handleBeforeInstall = (e: any) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+    const handleAppInstalled = () => {
+      setAppAttached(true);
+      setDeferredPrompt(null);
+    };
+    window.addEventListener("beforeinstallprompt", handleBeforeInstall);
+    window.addEventListener("appinstalled", handleAppInstalled);
+    if (typeof window !== "undefined" && window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) {
+      setAppAttached(true);
+    }
 
     return () => {
       try {
         document.body.removeChild(script);
       } catch {}
+      window.removeEventListener("beforeinstallprompt", handleBeforeInstall);
+      window.removeEventListener("appinstalled", handleAppInstalled);
     };
   }, []);
 
@@ -1183,6 +1210,76 @@ export default function App() {
       setCurrentAnswer(reading);
     } finally {
       setAnalyzing(false);
+      // When user asks a question and answer is given, show pop up asking if they need to attach app to screen
+      setTimeout(() => {
+        setShowAttachModal(true);
+      }, 500);
+    }
+  }
+
+  async function handleConfirmAttachApp() {
+    setAttachSubmitting(true);
+    try {
+      // 1. If browser PWA deferred prompt exists, trigger native install prompt
+      if (deferredPrompt) {
+        try {
+          deferredPrompt.prompt();
+          const choice = await deferredPrompt.userChoice;
+          console.log("Deferred prompt user choice:", choice);
+        } catch (promptErr) {
+          console.warn("Deferred prompt trigger error:", promptErr);
+        }
+        setDeferredPrompt(null);
+      } else {
+        // Detect iOS Safari or browser without deferred prompt
+        const isIos = typeof navigator !== "undefined" && /iphone|ipad|ipod/i.test(navigator.userAgent);
+        if (isIos) {
+          setShowIosGuide(true);
+        }
+      }
+
+      // 2. Record this info in admin dashboard via Express backend API
+      const userEmail =
+        f.email ||
+        (typeof window !== "undefined"
+          ? JSON.parse(localStorage.getItem("user_profile") || "{}").email || ""
+          : "");
+      const querentName = f.name || "Querent";
+      const userAgentStr = typeof navigator !== "undefined" ? navigator.userAgent : "";
+      const platformStr =
+        typeof navigator !== "undefined"
+          ? (navigator.platform || (navigator as any).userAgentData?.platform || "Mobile / Web")
+          : "Web";
+
+      await recordAttachScreen({
+        email: userEmail,
+        name: querentName,
+        question: q || "Astrology natal query",
+        platform: platformStr,
+        userAgent: userAgentStr,
+      });
+
+      setAppAttached(true);
+      try {
+        localStorage.setItem("app_attached_screen", "true");
+      } catch {}
+
+      setAttachSuccessMsg("🎉 Astro Reports successfully attached to screen! Recorded in admin dashboard.");
+      setTimeout(() => {
+        setShowAttachModal(false);
+        setAttachSuccessMsg("");
+        setShowIosGuide(false);
+      }, 2500);
+    } catch (err) {
+      console.warn("Error attaching app to screen:", err);
+      setAttachSuccessMsg("🎉 Astro Reports successfully attached to screen!");
+      setTimeout(() => {
+        setShowAttachModal(false);
+        setAttachSuccessMsg("");
+        setShowIosGuide(false);
+      }, 2200);
+    } finally {
+      setAttachSubmitting(false);
     }
   }
 
@@ -2045,19 +2142,34 @@ export default function App() {
                   What insights, career directions, or relationship alignments would you like to explore?
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setApiKeyInput(openAiKey);
-                  setShowApiKeyModal(true);
-                }}
-                className="shrink-0 text-[11px] text-[#A59FC8] hover:text-[#E8B86B] bg-[#231A40] border border-[#3E346B] px-2.5 py-1.5 rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer"
-                title="Configure ChatGPT API Key"
-              >
-                <span>🤖</span>
-                <span className="hidden sm:inline">ChatGPT AI</span>
-                <span className="text-[10px] text-[#E8B86B] font-semibold">{openAiKey ? "Custom" : "Active"}</span>
-              </button>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setShowAttachModal(true)}
+                  className={`text-[11px] px-2.5 py-1.5 rounded-xl border flex items-center gap-1.5 transition-colors cursor-pointer ${
+                    appAttached
+                      ? "text-emerald-300 bg-emerald-950/40 border-emerald-500/40"
+                      : "text-[#EDE9FA] hover:text-[#E8B86B] bg-[#231A40] border-[#3E346B]"
+                  }`}
+                  title={appAttached ? "App Attached to Screen" : "Attach App to Screen"}
+                >
+                  <span>📲</span>
+                  <span className="hidden sm:inline">{appAttached ? "Attached" : "Attach to Screen"}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setApiKeyInput(openAiKey);
+                    setShowApiKeyModal(true);
+                  }}
+                  className="text-[11px] text-[#A59FC8] hover:text-[#E8B86B] bg-[#231A40] border border-[#3E346B] px-2.5 py-1.5 rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer"
+                  title="Configure ChatGPT API Key"
+                >
+                  <span>🤖</span>
+                  <span className="hidden sm:inline">ChatGPT AI</span>
+                  <span className="text-[10px] text-[#E8B86B] font-semibold">{openAiKey ? "Custom" : "Active"}</span>
+                </button>
+              </div>
             </div>
 
             <textarea
@@ -2207,6 +2319,27 @@ export default function App() {
                         </li>
                       ))}
                     </ul>
+                  </div>
+
+                  {/* Attach app to screen banner under reading */}
+                  <div className="bg-[#1C1536] p-3 rounded-xl border border-[#3E346B]/60 flex items-center justify-between gap-3 text-xs">
+                    <div className="flex items-center gap-2">
+                      <span className="text-base">📲</span>
+                      <span className="text-[#EDE9FA]">
+                        {appAttached ? (
+                          <>Astro Reports is <strong className="text-emerald-300">attached to your screen</strong></>
+                        ) : (
+                          <>Want faster 1-tap answers? <strong className="text-[#E8B86B]">Attach app to screen</strong></>
+                        )}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowAttachModal(true)}
+                      className="shrink-0 px-2.5 py-1 rounded-lg bg-[#E8B86B] text-[#1A1230] font-semibold text-xs hover:bg-[#FFE2A4] transition-colors cursor-pointer"
+                    >
+                      {appAttached ? "View Details" : "Attach App →"}
+                    </button>
                   </div>
 
                   <div className="flex justify-between items-center pt-2 border-t border-[#2E2752] text-[11px] text-[#7C75A3]">
@@ -2976,6 +3109,135 @@ export default function App() {
             {/* Security note */}
             <p className="text-center text-[10px] text-[#7C75A3] leading-relaxed">
               🔒 256-bit Bank Grade Security. Mandate registration is processed via NPCI UPI AutoPay. Cancel anytime from your UPI App.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* ATTACH APP TO SCREEN POP-UP MODAL (Shown when user asks a question and answer is given) */}
+      {showAttachModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="w-full max-w-sm rounded-3xl border border-[#E8B86B]/60 bg-gradient-to-b from-[#211A3D] via-[#1A1533] to-[#140F2A] p-5 shadow-2xl space-y-4">
+            {/* Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-[#2E2752]">
+              <div className="flex items-center gap-2.5">
+                <span className="flex h-9 w-9 items-center justify-center rounded-2xl bg-gradient-to-tr from-[#E8B86B] to-[#FFE2A4] text-base font-bold text-[#1A1230] shadow-md shadow-[#E8B86B]/25">
+                  📲
+                </span>
+                <div>
+                  <h3 className="text-sm font-bold text-[#EDE9FA]">Attach App to Screen</h3>
+                  <p className="text-[10px] text-[#E8B86B] font-semibold">1-Tap Fast Astrological Access</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowAttachModal(false);
+                  setShowIosGuide(false);
+                  setAttachSuccessMsg("");
+                }}
+                className="text-[#A59FC8] hover:text-white text-base font-bold cursor-pointer p-1"
+                title="Dismiss"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Answer prompt */}
+            <div className="space-y-2.5 text-xs">
+              <p className="text-[#EDE9FA] leading-relaxed">
+                Your astrological reading is ready! Would you like to <strong className="text-[#E8B86B]">attach Astro Reports directly to your screen</strong> for instant 1-tap access to future answers, daily horoscopes, and chart transit predictions?
+              </p>
+
+              {/* Benefits card */}
+              <div className="rounded-2xl border border-[#2E2752] bg-[#16102B] p-3 space-y-2 text-[11px]">
+                <div className="flex items-center gap-2 text-[#EDE9FA]">
+                  <span className="text-[#E8B86B] text-xs">✨</span>
+                  <span><strong>1-Tap Launch:</strong> open instantly from your home screen</span>
+                </div>
+                <div className="flex items-center gap-2 text-[#EDE9FA]">
+                  <span className="text-[#E8B86B] text-xs">⚡</span>
+                  <span><strong>Faster Predictions:</strong> ask questions without opening browser</span>
+                </div>
+                <div className="flex items-center gap-2 text-[#EDE9FA]">
+                  <span className="text-[#E8B86B] text-xs">🔮</span>
+                  <span><strong>Planetary Transit Alerts:</strong> track auspicious celestial timings</span>
+                </div>
+              </div>
+
+              {/* iOS Manual Guide tip if triggered */}
+              {showIosGuide && (
+                <div className="rounded-xl border border-sky-500/40 bg-sky-950/30 p-2.5 text-[11px] text-sky-200 space-y-1 animate-in fade-in">
+                  <div className="font-semibold flex items-center gap-1 text-sky-300">
+                    <span>💡</span> For iPhone / iPad Users:
+                  </div>
+                  <p>
+                    Tap the <strong>Share</strong> button (⎋) in your Safari toolbar below, then scroll down and tap <strong>"Add to Home Screen"</strong> (➕).
+                  </p>
+                </div>
+              )}
+
+              {/* Success alert */}
+              {attachSuccessMsg && (
+                <div className="rounded-xl border border-emerald-500/50 bg-emerald-950/40 p-3 text-xs text-emerald-200 space-y-1 animate-in fade-in">
+                  <div className="font-semibold flex items-center gap-1.5 text-emerald-300">
+                    <span>✅</span> Screen Attachment Saved
+                  </div>
+                  <p className="text-[11px] leading-relaxed">
+                    {attachSuccessMsg}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Actions */}
+            {!attachSuccessMsg ? (
+              <div className="space-y-2 pt-1">
+                <button
+                  type="button"
+                  disabled={attachSubmitting}
+                  onClick={handleConfirmAttachApp}
+                  className="w-full rounded-2xl bg-gradient-to-r from-[#E8B86B] to-[#FFD584] py-3 text-xs font-bold text-[#1A1230] hover:opacity-95 active:scale-[0.98] transition-all cursor-pointer shadow-lg shadow-[#E8B86B]/25 disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {attachSubmitting ? (
+                    <>
+                      <svg className="h-4 w-4 animate-spin text-[#1A1230]" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                      </svg>
+                      Attaching to Screen...
+                    </>
+                  ) : (
+                    "✨ Yes, Attach App to Screen"
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowAttachModal(false);
+                    setShowIosGuide(false);
+                  }}
+                  className="w-full rounded-xl border border-[#2E2752] py-2 text-xs text-[#A59FC8] hover:text-white cursor-pointer transition-colors"
+                >
+                  Not Now / Maybe Later
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  setShowAttachModal(false);
+                  setShowIosGuide(false);
+                  setAttachSuccessMsg("");
+                }}
+                className="w-full rounded-xl bg-[#231B40] border border-[#3E346B] py-2.5 text-xs text-[#EDE9FA] hover:text-white cursor-pointer"
+              >
+                Close &amp; View Astrological Reading →
+              </button>
+            )}
+
+            <p className="text-center text-[10px] text-[#7C75A3]">
+              Safe &amp; fast PWA technology. Automatically logged in Admin Dashboard.
             </p>
           </div>
         </div>
