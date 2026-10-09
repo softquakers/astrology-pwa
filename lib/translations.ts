@@ -216,6 +216,14 @@ export interface TranslationDictionary {
     cancel: string;
     securityNote: string;
   };
+  lockedTab: {
+    lockedBadge: string;
+    lockedTitle: (tabName: string) => string;
+    lockedDesc: (tabName: string) => string;
+    signInBtn: string;
+    backHome: string;
+    close: string;
+  };
   zodiacs: Record<string, string>;
   planets: Record<string, string>;
 }
@@ -436,6 +444,14 @@ export const translations: Record<Language, TranslationDictionary> = {
       authorizing: "Authorizing Mandate...",
       cancel: "Cancel",
       securityNote: "🔒 256-bit Bank Grade Security. Mandate registration is processed via NPCI UPI AutoPay. Cancel anytime from your UPI App.",
+    },
+    lockedTab: {
+      lockedBadge: "Locked",
+      lockedTitle: (tabName) => `${tabName} is Locked`,
+      lockedDesc: (tabName) => `Please sign in to access ${tabName}. Your astrology history, profile, and subscription plans require an active account.`,
+      signInBtn: "Sign In with Google",
+      backHome: "Back to Home",
+      close: "Close",
     },
     zodiacs: {
       Aries: "Aries",
@@ -678,6 +694,14 @@ export const translations: Record<Language, TranslationDictionary> = {
       authorizing: "मैंडेट अधिकृत हो रहा है...",
       cancel: "रद्द करें",
       securityNote: "🔒 256-बिट बैंक स्तरीय सुरक्षा। मैंडेट पंजीकरण एनपीसीआई यूपीआई ऑटोपे द्वारा संसाधित होता है। कभी भी अपने यूपीआई ऐप से रद्द करें।",
+    },
+    lockedTab: {
+      lockedBadge: "लॉक",
+      lockedTitle: (tabName) => `${tabName} लॉक है`,
+      lockedDesc: (tabName) => `${tabName} का उपयोग करने के लिए कृपया साइन इन करें। अपनी कुंडली का इतिहास, प्रोफ़ाइल और प्रीमियम योजनाएं देखने के लिए लॉगिन आवश्यक है।`,
+      signInBtn: "Google से साइन इन करें",
+      backHome: "होम पर वापस जाएं",
+      close: "बंद करें",
     },
     zodiacs: {
       Aries: "मेष",

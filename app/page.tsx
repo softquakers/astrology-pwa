@@ -548,6 +548,8 @@ export default function App() {
   const [showApiKeyModal, setShowApiKeyModal] = useState(false);
   const [apiKeyInput, setApiKeyInput] = useState("");
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [showTabLockedModal, setShowTabLockedModal] = useState(false);
+  const [lockedModalTab, setLockedModalTab] = useState<(typeof TABS)[number]>("History");
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
   const [ok, setOk] = useState(true);
@@ -1146,6 +1148,7 @@ export default function App() {
       if (res?.token) {
         saveStoredToken(res.token);
         setIsLoggedIn(true);
+        setShowTabLockedModal(false);
       }
 
       // Check if user is an existing user with birth chart data
@@ -1316,7 +1319,12 @@ export default function App() {
     if (!chart) return;
     if (!q.trim()) return;
 
-    // If user is not subscribed, navigate to subscription page as requested
+    // If user is not logged in or not subscribed, handle access
+    if (!isLoggedIn) {
+      setLockedModalTab("Plans");
+      setShowTabLockedModal(true);
+      return;
+    }
     if (!sub) {
       setTab("Plans");
       return;
@@ -1691,8 +1699,21 @@ export default function App() {
             </div>
           </div>
 
-          {/* Language Toggle Button (replacing Chart Ready badge & Premium button) */}
-          <div className="flex items-center rounded-full bg-[#181233] p-1 border border-[#3E346B] shadow-inner shrink-0">
+          <div className="flex items-center gap-2">
+            {!isLoggedIn && (
+              <button
+                type="button"
+                onClick={() => triggerGoogleSignIn()}
+                className="px-2.5 py-1 text-xs font-semibold rounded-full bg-[#E8B86B]/15 text-[#E8B86B] border border-[#E8B86B]/30 hover:bg-[#E8B86B]/25 transition-all flex items-center gap-1 cursor-pointer shrink-0"
+                title={lang === "hi" ? "साइन इन करें" : "Sign In"}
+              >
+                <span>🔑</span>
+                <span>{lang === "hi" ? "साइन इन" : "Sign In"}</span>
+              </button>
+            )}
+
+            {/* Language Toggle Button (replacing Chart Ready badge & Premium button) */}
+            <div className="flex items-center rounded-full bg-[#181233] p-1 border border-[#3E346B] shadow-inner shrink-0">
             <button
               type="button"
               onClick={() => switchLanguage("en")}
@@ -1718,7 +1739,8 @@ export default function App() {
               हिंदी
             </button>
           </div>
-        </header>
+        </div>
+      </header>
 
         {/* Home Page Title Section */}
         {tab === "Home" && (
@@ -1825,6 +1847,19 @@ export default function App() {
                 >
                   {t.steps.name.btn}
                 </button>
+
+                {!isLoggedIn && (
+                  <div className="pt-1 text-center">
+                    <button
+                      type="button"
+                      onClick={() => triggerGoogleSignIn()}
+                      className="text-xs text-[#A59FC8] hover:text-[#E8B86B] transition-colors inline-flex items-center gap-1.5 cursor-pointer py-1"
+                    >
+                      <span>🔑</span>
+                      <span>{lang === "hi" ? "पहले से खाता है? साइन इन करें" : "Already have an account? Sign In"}</span>
+                    </button>
+                  </div>
+                )}
               </section>
             )}
 
@@ -2319,7 +2354,14 @@ export default function App() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => setTab("Plans")}
+                  onClick={() => {
+                    if (!isLoggedIn) {
+                      setLockedModalTab("Plans");
+                      setShowTabLockedModal(true);
+                    } else {
+                      setTab("Plans");
+                    }
+                  }}
                   className="shrink-0 px-2.5 py-1 rounded-lg bg-[#E8B86B] text-[#1A1230] font-semibold text-xs hover:bg-[#FFE2A4] transition-colors cursor-pointer"
                 >
                   {t.ask.viewPlans}
@@ -2501,7 +2543,17 @@ export default function App() {
                 {t.locked.desc}
               </p>
             </div>
-            <button className={btn} onClick={() => setTab("Plans")}>
+            <button
+              className={btn}
+              onClick={() => {
+                if (!isLoggedIn) {
+                  setLockedModalTab("Plans");
+                  setShowTabLockedModal(true);
+                } else {
+                  setTab("Plans");
+                }
+              }}
+            >
               {t.locked.btn}
             </button>
           </div>
@@ -2538,8 +2590,60 @@ export default function App() {
           </div>
         )}
 
+        {/* FROZEN / LOCKED TAB SCREEN (When guest user tries to view non-Home tab) */}
+        {!isLoggedIn && tab !== "Home" && (
+          <div className="space-y-5 animate-in fade-in duration-200 py-6 text-center">
+            <div className="rounded-3xl border border-[#E8B86B]/30 bg-gradient-to-b from-[#1E1738]/95 to-[#120D24]/95 p-6 shadow-2xl backdrop-blur-md space-y-4 max-w-sm mx-auto">
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-[#E8B86B]/15 text-3xl shadow-[0_0_25px_rgba(232,184,107,0.25)] border border-[#E8B86B]/30">
+                🔒
+              </div>
+
+              <div className="space-y-1.5">
+                <div className="inline-flex items-center gap-1.5 rounded-full bg-[#E8B86B]/10 px-3 py-1 text-xs font-semibold text-[#E8B86B] border border-[#E8B86B]/20">
+                  <span>❄️</span>
+                  <span>{t.lockedTab.lockedBadge}</span>
+                </div>
+                <h2 className="text-xl font-bold tracking-tight text-[#EDE9FA]">
+                  {t.lockedTab.lockedTitle(
+                    tab === "History" ? t.tabs.history : tab === "Profile" ? t.tabs.profile : t.tabs.plans
+                  )}
+                </h2>
+                <p className="text-xs text-[#A59FC8] leading-relaxed">
+                  {t.lockedTab.lockedDesc(
+                    tab === "History" ? t.tabs.history : tab === "Profile" ? t.tabs.profile : t.tabs.plans
+                  )}
+                </p>
+              </div>
+
+              <div className="space-y-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => triggerGoogleSignIn()}
+                  className={btn}
+                >
+                  <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24">
+                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
+                  </svg>
+                  <span>{t.lockedTab.signInBtn}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setTab("Home")}
+                  className="w-full py-2.5 rounded-xl border border-[#3E346B] text-xs font-semibold text-[#A59FC8] hover:text-[#EDE9FA] hover:bg-[#1E1738] transition-colors cursor-pointer"
+                >
+                  {t.lockedTab.backHome}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* TAB: HISTORY */}
-        {tab === "History" && (
+        {tab === "History" && isLoggedIn && (
           <div className="space-y-4 animate-in fade-in duration-200">
             <h1 className="text-2xl font-bold tracking-tight text-[#EDE9FA]">{t.history.title}</h1>
             {hist.length === 0 ? (
@@ -2566,7 +2670,7 @@ export default function App() {
         )}
 
         {/* TAB: PROFILE */}
-        {tab === "Profile" && (
+        {tab === "Profile" && isLoggedIn && (
           <div className="space-y-4 animate-in fade-in duration-200">
             <h1 className="text-2xl font-bold tracking-tight text-[#EDE9FA]">{t.profile.title}</h1>
             <div className={card + " space-y-4"}>
@@ -2748,7 +2852,7 @@ export default function App() {
         )}
 
         {/* TAB: PLANS */}
-        {tab === "Plans" && (
+        {tab === "Plans" && isLoggedIn && (
           <div className="space-y-4 animate-in fade-in duration-200">
             {/* Header */}
             <div className="space-y-1">
@@ -3134,8 +3238,8 @@ export default function App() {
                   ⚡
                 </span>
                 <div>
-                  <h3 className="text-sm font-bold text-[#EDE9FA]">UPI AutoPay Mandate</h3>
-                  <p className="text-[10px] text-[#A59FC8]">Razorpay Payments Gateway</p>
+                  <h3 className="text-sm font-bold text-[#EDE9FA]">{t.upiModal.title}</h3>
+                  <p className="text-[10px] text-[#A59FC8]">{t.upiModal.secureTag}</p>
                 </div>
               </div>
               <button
@@ -3153,25 +3257,25 @@ export default function App() {
             {/* Mandate Summary Card */}
             <div className="rounded-2xl border border-[#2E2752] bg-[#1E1738] p-3 space-y-2 text-xs">
               <div className="flex justify-between">
-                <span className="text-[#A59FC8]">Merchant:</span>
-                <span className="font-semibold text-[#EDE9FA]">Astrology App</span>
+                <span className="text-[#A59FC8]">{t.upiModal.merchant}:</span>
+                <span className="font-semibold text-[#EDE9FA]">{t.appName}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-[#A59FC8]">Plan:</span>
+                <span className="text-[#A59FC8]">{t.upiModal.plan}:</span>
                 <span className="font-semibold text-[#E8B86B]">{pendingSubSession.planName}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-[#A59FC8]">Mandate Amount:</span>
+                <span className="text-[#A59FC8]">{t.upiModal.amount}:</span>
                 <span className="font-bold text-sm text-[#E8B86B]">₹{pendingSubSession.amount}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-[#A59FC8]">Debit Frequency:</span>
+                <span className="text-[#A59FC8]">{t.upiModal.frequency}:</span>
                 <span className="font-medium text-[#EDE9FA]">
-                  {pendingSubSession.planId === "three_month" ? "Every 3 Months" : "Monthly"}
+                  {pendingSubSession.planId === "three_month" ? t.upiModal.every3Months : t.upiModal.monthly}
                 </span>
               </div>
               <div className="flex justify-between pt-1 border-t border-[#2E2752]/60 text-[11px]">
-                <span className="text-[#7C75A3]">Sub ID:</span>
+                <span className="text-[#7C75A3]">{t.upiModal.subId}:</span>
                 <span className="font-mono text-[10px] text-[#A59FC8] truncate max-w-[150px]">
                   {pendingSubSession.subscriptionId}
                 </span>
@@ -3181,7 +3285,7 @@ export default function App() {
             {/* Select UPI App */}
             <div className="space-y-1.5">
               <label className="text-[11px] font-semibold text-[#EDE9FA] block">
-                Select Your UPI App:
+                {t.upiModal.selectApp}:
               </label>
               <div className="grid grid-cols-3 gap-1.5">
                 {[
@@ -3220,8 +3324,8 @@ export default function App() {
                 className="w-full rounded-2xl bg-gradient-to-r from-[#E8B86B] to-[#FFD584] py-3 text-xs font-bold text-[#1A1230] hover:opacity-95 active:scale-[0.98] transition-all cursor-pointer shadow-lg shadow-[#E8B86B]/20 disabled:opacity-50"
               >
                 {pinSubmitting
-                  ? "Authorizing Mandate..."
-                  : `Authorize AutoPay Mandate (₹${pendingSubSession.amount}) ✓`}
+                  ? t.upiModal.authorizing
+                  : t.upiModal.authBtn(pendingSubSession.amount)}
               </button>
               <button
                 type="button"
@@ -3231,13 +3335,13 @@ export default function App() {
                 }}
                 className="w-full rounded-xl border border-[#2E2752] py-2 text-xs text-[#A59FC8] hover:text-white cursor-pointer"
               >
-                Cancel
+                {t.upiModal.cancel}
               </button>
             </div>
 
             {/* Security note */}
             <p className="text-center text-[10px] text-[#7C75A3] leading-relaxed">
-              🔒 256-bit Bank Grade Security. Mandate registration is processed via NPCI UPI AutoPay. Cancel anytime from your UPI App.
+              {t.upiModal.securityNote}
             </p>
           </div>
         </div>
@@ -3254,8 +3358,8 @@ export default function App() {
                   📲
                 </span>
                 <div>
-                  <h3 className="text-sm font-bold text-[#EDE9FA]">Attach to Home Screen</h3>
-                  <p className="text-[10px] text-[#E8B86B] font-semibold">1-Tap Fast Astrological Access</p>
+                  <h3 className="text-sm font-bold text-[#EDE9FA]">{t.attachModal.title}</h3>
+                  <p className="text-[10px] text-[#E8B86B] font-semibold">{t.attachModal.subtitle}</p>
                 </div>
               </div>
               <button
@@ -3276,10 +3380,10 @@ export default function App() {
             <div className="space-y-3 text-xs">
               <div className="rounded-2xl border border-[#E8B86B]/30 bg-gradient-to-r from-[#2A1D4E]/60 to-[#1F173D]/60 p-3.5 text-center space-y-1.5 shadow-md">
                 <p className="text-sm font-bold text-[#EDE9FA] leading-snug">
-                  Are you interested in attaching this app to your home screen?
+                  {t.attachModal.prompt}
                 </p>
                 <p className="text-[11px] text-[#C4BEDD] leading-relaxed">
-                  Attach Astro Reports to your home screen for instant 1-tap astrological guidance, planetary transit alerts, and future answers.
+                  {t.attachModal.desc}
                 </p>
               </div>
 
@@ -3287,15 +3391,15 @@ export default function App() {
               <div className="rounded-2xl border border-[#2E2752] bg-[#16102B] p-3 space-y-2 text-[11px]">
                 <div className="flex items-center gap-2 text-[#EDE9FA]">
                   <span className="text-[#E8B86B] text-xs">✨</span>
-                  <span><strong>1-Tap Launch:</strong> open instantly from your home screen</span>
+                  <span><strong>{t.attachModal.b1Title}:</strong> {t.attachModal.b1Desc}</span>
                 </div>
                 <div className="flex items-center gap-2 text-[#EDE9FA]">
                   <span className="text-[#E8B86B] text-xs">⚡</span>
-                  <span><strong>Faster Answers:</strong> ask questions without opening browser</span>
+                  <span><strong>{t.attachModal.b2Title}:</strong> {t.attachModal.b2Desc}</span>
                 </div>
                 <div className="flex items-center gap-2 text-[#EDE9FA]">
                   <span className="text-[#E8B86B] text-xs">🔮</span>
-                  <span><strong>Planetary Transit Alerts:</strong> track auspicious celestial timings</span>
+                  <span><strong>{t.attachModal.b3Title}:</strong> {t.attachModal.b3Desc}</span>
                 </div>
               </div>
 
@@ -3303,10 +3407,10 @@ export default function App() {
               {showIosGuide && (
                 <div className="rounded-xl border border-sky-500/40 bg-sky-950/30 p-2.5 text-[11px] text-sky-200 space-y-1 animate-in fade-in">
                   <div className="font-semibold flex items-center gap-1 text-sky-300">
-                    <span>💡</span> For iPhone / iPad Users:
+                    <span>💡</span> {t.attachModal.iosTitle}:
                   </div>
                   <p>
-                    Tap the <strong>Share</strong> button (⎋) in your Safari toolbar below, then scroll down and tap <strong>"Add to Home Screen"</strong> (➕).
+                    {t.attachModal.iosDesc}
                   </p>
                 </div>
               )}
@@ -3315,7 +3419,7 @@ export default function App() {
               {attachSuccessMsg && (
                 <div className="rounded-xl border border-emerald-500/50 bg-emerald-950/40 p-3 text-xs text-emerald-200 space-y-1 animate-in fade-in">
                   <div className="font-semibold flex items-center gap-1.5 text-emerald-300">
-                    <span>✅</span> Screen Attachment Saved
+                    <span>✅</span> {t.attachModal.savedTitle}
                   </div>
                   <p className="text-[11px] leading-relaxed">
                     {attachSuccessMsg}
@@ -3339,10 +3443,10 @@ export default function App() {
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
                       </svg>
-                      Attaching to Home Screen...
+                      {t.attachModal.attachingBtn}
                     </>
                   ) : (
-                    "✨ Yes, Attach to Home Screen"
+                    t.attachModal.confirmBtn
                   )}
                 </button>
                 <button
@@ -3353,7 +3457,7 @@ export default function App() {
                   }}
                   className="w-full rounded-xl border border-[#2E2752] py-2 text-xs text-[#A59FC8] hover:text-white cursor-pointer transition-colors"
                 >
-                  No, Maybe Later
+                  {t.attachModal.laterBtn}
                 </button>
               </div>
             ) : (
@@ -3366,13 +3470,86 @@ export default function App() {
                 }}
                 className="w-full rounded-xl bg-[#231B40] border border-[#3E346B] py-2.5 text-xs text-[#EDE9FA] hover:text-white cursor-pointer"
               >
-                Close &amp; View Astrological Reading →
+                {t.attachModal.closeBtn}
               </button>
             )}
 
             <p className="text-center text-[10px] text-[#7C75A3]">
-              Safe &amp; fast PWA technology. Automatically logged in Admin Dashboard.
+              {t.attachModal.pwaNote}
             </p>
+          </div>
+        </div>
+      )}
+
+      {/* LOCKED TAB MODAL (When guest tries to access History, Profile, or Plans) */}
+      {showTabLockedModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="w-full max-w-sm rounded-3xl border border-[#E8B86B]/40 bg-[#150F28] p-5 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-[#2E2752]">
+              <div className="flex items-center gap-2">
+                <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-[#E8B86B]/20 text-sm text-[#E8B86B]">
+                  🔒
+                </span>
+                <span className="text-sm font-semibold text-[#EDE9FA]">
+                  {t.lockedTab.lockedTitle(
+                    lockedModalTab === "History"
+                      ? t.tabs.history
+                      : lockedModalTab === "Profile"
+                      ? t.tabs.profile
+                      : t.tabs.plans
+                  )}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowTabLockedModal(false)}
+                className="text-[#A59FC8] hover:text-white text-lg font-bold cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="text-center py-2 space-y-2">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[#E8B86B]/15 text-2xl border border-[#E8B86B]/30 shadow-[0_0_20px_rgba(232,184,107,0.2)]">
+                {lockedModalTab === "History" ? "📜" : lockedModalTab === "Profile" ? "👤" : "💎"}
+              </div>
+              <p className="text-xs text-[#A59FC8] leading-relaxed">
+                {t.lockedTab.lockedDesc(
+                  lockedModalTab === "History"
+                    ? t.tabs.history
+                    : lockedModalTab === "Profile"
+                    ? t.tabs.profile
+                    : t.tabs.plans
+                )}
+              </p>
+            </div>
+
+            <div className="space-y-2 pt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowTabLockedModal(false);
+                  triggerGoogleSignIn();
+                }}
+                className={btn}
+              >
+                <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24">
+                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
+                </svg>
+                <span>{t.lockedTab.signInBtn}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowTabLockedModal(false)}
+                className="w-full py-2.5 rounded-xl border border-[#3E346B] text-xs font-semibold text-[#A59FC8] hover:text-[#EDE9FA] transition-colors cursor-pointer"
+              >
+                {t.lockedTab.close}
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -3380,19 +3557,53 @@ export default function App() {
       {/* BOTTOM NAVIGATION BAR */}
 
       <nav className="fixed inset-x-0 bottom-0 mx-auto flex max-w-md border-t border-[#2E2752] bg-[#150F2B]/95 backdrop-blur-md px-2 pb-[calc(env(safe-area-inset-bottom)+12px)] pt-2 z-40">
-        {TABS.map(t => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={
-              "min-h-11 flex-1 text-xs font-medium cursor-pointer transition-colors flex flex-col items-center justify-center gap-0.5 " +
-              (tab === t ? "text-[#E8B86B] font-semibold" : "text-[#A59FC8] hover:text-[#EDE9FA]")
-            }
-          >
-            <span>{t === "Home" ? "🌟" : t === "History" ? "📜" : t === "Profile" ? "👤" : "💎"}</span>
-            <span>{t}</span>
-          </button>
-        ))}
+        {TABS.map(tabKey => {
+          const isLocked = !isLoggedIn && tabKey !== "Home";
+          const tabLabel =
+            tabKey === "Home"
+              ? t.tabs.home
+              : tabKey === "History"
+              ? t.tabs.history
+              : tabKey === "Profile"
+              ? t.tabs.profile
+              : t.tabs.plans;
+          return (
+            <button
+              key={tabKey}
+              onClick={() => {
+                if (isLocked) {
+                  setLockedModalTab(tabKey);
+                  setShowTabLockedModal(true);
+                  return;
+                }
+                setTab(tabKey);
+              }}
+              className={
+                "min-h-11 flex-1 text-xs font-medium cursor-pointer transition-all flex flex-col items-center justify-center gap-0.5 relative " +
+                (tab === tabKey
+                  ? "text-[#E8B86B] font-semibold"
+                  : isLocked
+                  ? "text-[#706899] hover:text-[#A59FC8]"
+                  : "text-[#A59FC8] hover:text-[#EDE9FA]")
+              }
+              title={isLocked ? `${tabLabel} (${t.lockedTab.lockedBadge})` : tabLabel}
+            >
+              <div className="relative flex items-center justify-center">
+                <span className={isLocked ? "opacity-60 scale-95" : ""}>
+                  {tabKey === "Home" ? "🌟" : tabKey === "History" ? "📜" : tabKey === "Profile" ? "👤" : "💎"}
+                </span>
+                {isLocked && (
+                  <span className="absolute -top-1.5 -right-2.5 text-[9px] leading-none bg-[#0D0A1C] border border-[#E8B86B]/40 text-[#E8B86B] rounded-full px-1 py-0.5 shadow-sm">
+                    🔒
+                  </span>
+                )}
+              </div>
+              <span className={`flex items-center gap-0.5 ${isLocked ? "opacity-60" : ""}`}>
+                <span>{tabLabel}</span>
+              </span>
+            </button>
+          );
+        })}
       </nav>
     </div>
   );
