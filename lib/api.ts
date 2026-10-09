@@ -82,6 +82,7 @@ export interface GoogleAuthParams {
 
 export interface SignUpResult {
   success: boolean;
+  token?: string;
   message?: string;
   offline?: boolean;
   user?: {
@@ -98,6 +99,75 @@ export interface SignUpResult {
     isPremium?: boolean;
   };
 }
+
+const TOKEN_KEY = "auth_token";
+const TOKEN_EXPIRY_KEY = "auth_token_expiry";
+
+/**
+ * Returns stored JWT session token if present and not expired (valid for 30 days).
+ */
+export function getStoredToken(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const expStr = localStorage.getItem(TOKEN_EXPIRY_KEY);
+    if (expStr) {
+      const expTime = parseInt(expStr, 10);
+      if (Date.now() > expTime) {
+        // Expired after 1 month
+        localStorage.removeItem(TOKEN_KEY);
+        localStorage.removeItem(TOKEN_EXPIRY_KEY);
+        return null;
+      }
+    }
+    return localStorage.getItem(TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Saves JWT session token with a 30-day (1 month) expiration timestamp in localStorage.
+ */
+export function saveStoredToken(token: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(TOKEN_KEY, token);
+    const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000; // 30 days
+    localStorage.setItem(TOKEN_EXPIRY_KEY, String(Date.now() + thirtyDaysMs));
+  } catch {}
+}
+
+/**
+ * Clears stored JWT session token from localStorage.
+ */
+export function clearStoredToken(): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(TOKEN_EXPIRY_KEY);
+  } catch {}
+}
+
+/**
+ * Verifies the 30-day JWT session token with the backend and returns user details.
+ */
+export async function verifySessionToken(token: string): Promise<SignUpResult | null> {
+  try {
+    const endpoint = `${BASE_URL}/api/users/me`;
+    const res = await fetch(endpoint, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
 
 export async function signUpUser(params: SignUpParams): Promise<SignUpResult> {
   const endpoint = `${BASE_URL}/api/users/signup`;

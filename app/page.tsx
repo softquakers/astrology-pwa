@@ -13,6 +13,10 @@ import {
   BACKEND_URL,
   askAstrologyQuestion,
   AstrologicalAnswer,
+  getStoredToken,
+  saveStoredToken,
+  clearStoredToken,
+  verifySessionToken,
 } from "../lib/api";
 
 declare global {
@@ -392,6 +396,7 @@ export default function App() {
   const [openAiKey, setOpenAiKey] = useState("");
   const [showApiKeyModal, setShowApiKeyModal] = useState(false);
   const [apiKeyInput, setApiKeyInput] = useState("");
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
   const [ok, setOk] = useState(true);
@@ -580,6 +585,98 @@ export default function App() {
       if (savedApiKey) {
         setOpenAiKey(savedApiKey);
         setApiKeyInput(savedApiKey);
+      }
+
+      // 30-Day Session Token & Auto-Navigation directly to Chat Screen on Launch
+      const token = getStoredToken();
+      if (token || savedProfile?.email) {
+        setIsLoggedIn(true);
+
+        // 1. Check if there is a cached birth chart in localStorage or history
+        let initialChart: Chart | null = null;
+        try {
+          const cachedChartStr = localStorage.getItem("saved_chart");
+          if (cachedChartStr) initialChart = JSON.parse(cachedChartStr);
+        } catch {}
+
+        if (!initialChart && Array.isArray(savedHist) && savedHist.length > 0 && savedHist[0].chart) {
+          initialChart = savedHist[0].chart;
+        }
+
+        if (initialChart) {
+          setChart(initialChart);
+          if (Array.isArray(savedHist) && savedHist.length > 0) {
+            setCur(savedHist[0]);
+          } else {
+            setCur({
+              q: "Natal Birth Chart Analysis",
+              name: savedProfile?.name || "Querent",
+              at: new Date().toLocaleDateString(),
+              chart: initialChart,
+            });
+          }
+        }
+
+        // 2. DIRECTLY NAVIGATE TO CHAT SCREEN!
+        setStep("ask");
+        setTab("Home");
+
+        // 3. If birth details exist but chart wasn't in cache, calculate in background
+        const targetDob = savedProfile?.dob;
+        const targetPlace = savedProfile?.birthPlace;
+        const targetTime = savedProfile?.birthTime || "12:00";
+        const targetName = savedProfile?.name || "Querent";
+        const targetEmail = savedProfile?.email || "";
+
+        if (!initialChart && targetDob && targetPlace) {
+          fetchGeoLocation(targetPlace)
+            .then(g => {
+              setGeo(g);
+              return fetchBirthChart({
+                date: targetDob,
+                time: targetTime,
+                lat: g.lat,
+                lon: g.lon,
+                name: targetName,
+                email: targetEmail,
+                place: targetPlace,
+              });
+            })
+            .then(c => {
+              setChart(c);
+              try { localStorage.setItem("saved_chart", JSON.stringify(c)); } catch {}
+              setCur({
+                q: "Natal Birth Chart Analysis",
+                name: targetName,
+                at: new Date().toLocaleDateString(),
+                chart: c,
+              });
+            })
+            .catch(err => {
+              console.warn("Background auto-chart calculate error:", err);
+            });
+        }
+
+        // 4. Verify/sync session in background with server to refresh membership & token
+        if (token) {
+          verifySessionToken(token)
+            .then(res => {
+              if (res && res.success && res.user) {
+                if (res.user.isPremium || res.user.subscriptionStatus === "active" || res.user.subscriptionStatus === "premium") {
+                  setSub(true);
+                  try { localStorage.setItem("sub", "1"); } catch {}
+                }
+                if (res.token) {
+                  saveStoredToken(res.token);
+                }
+              } else if (res && !res.success) {
+                clearStoredToken();
+                setIsLoggedIn(false);
+                setStep("form");
+              }
+            })
+            .catch(() => {});
+        }
       }
 
       // Check URL query parameters for Razorpay / payment gateway redirect
@@ -865,6 +962,11 @@ export default function App() {
         googleAuthBday: cleanBday || googleAuthBday || undefined,
       });
 
+      if (res?.token) {
+        saveStoredToken(res.token);
+        setIsLoggedIn(true);
+      }
+
       // Check if user is an existing user with birth chart data
       const existingUser = res?.user;
       const userDob = existingUser?.dob || f.date.trim();
@@ -918,6 +1020,7 @@ export default function App() {
             place: userPlace,
           });
           setChart(c);
+          try { localStorage.setItem("saved_chart", JSON.stringify(c)); } catch {}
           setCur({
             q: "Natal Birth Chart Analysis",
             name: userName,
@@ -944,6 +1047,7 @@ export default function App() {
           if (Array.isArray(savedHist) && savedHist.length > 0 && savedHist[0].chart) {
             const lastReport = savedHist[0];
             setChart(lastReport.chart);
+            try { localStorage.setItem("saved_chart", JSON.stringify(lastReport.chart)); } catch {}
             setCur(lastReport);
             if (lastReport.name) setF(prev => ({ ...prev, name: lastReport.name }));
             setStep("ask");
@@ -967,7 +1071,7 @@ export default function App() {
       // 1. Call Sign Up API with full user details: email, name, profile pic, and DOB!
       if (f.email.trim()) {
         try {
-          await signUpUser({
+          const signUpRes = await signUpUser({
             email: f.email.trim(),
             name: f.name.trim(),
             photoUrl: photoUrl || undefined,
@@ -976,6 +1080,10 @@ export default function App() {
             birthPlace: f.place.trim() || undefined,
             googleAuthBday: googleAuthBday || undefined,
           });
+          if (signUpRes?.token) {
+            saveStoredToken(signUpRes.token);
+            setIsLoggedIn(true);
+          }
         } catch (signUpErr) {
           console.warn("Sign up warning:", signUpErr);
         }
@@ -996,7 +1104,26 @@ export default function App() {
         place: f.place.trim(),
       });
       setChart(c);
+      try {
+        localStorage.setItem("saved_chart", JSON.stringify(c));
+        localStorage.setItem("user_profile", JSON.stringify({
+          email: f.email.trim(),
+          name: f.name.trim(),
+          dob: f.date.trim(),
+          birthTime: f.time.trim(),
+          birthPlace: f.place.trim(),
+          photoUrl: photoUrl || undefined,
+        }));
+      } catch {}
+      setCur({
+        q: "Natal Birth Chart Analysis",
+        name: f.name.trim() || "Querent",
+        at: new Date().toLocaleDateString(),
+        chart: c,
+      });
+      // Directly navigate to chat screen!
       setStep("ask");
+      setTab("Home");
     } catch (e) {
       setErr((e as Error).message || "An unexpected error occurred");
     } finally {
@@ -2375,6 +2502,46 @@ export default function App() {
                   Key can also be defined in <code className="text-[#E8B86B]">.env</code> as <code className="text-[#E8B86B]">OPENAI_API_KEY</code>.
                 </p>
               </div>
+            </div>
+
+            {/* 30-Day Session Token & Auto-Login Card */}
+            <div className={card + " space-y-2.5 text-xs border-[#2E2752]"}>
+              <div className="flex items-center justify-between">
+                <div className="font-semibold text-[#EDE9FA] flex items-center gap-1.5">
+                  <span>🔐</span> 30-Day Auto Login
+                </div>
+                <span className={`text-[10px] px-2 py-0.5 rounded-full border ${isLoggedIn ? "text-emerald-300 border-emerald-500/40 bg-emerald-950/30 font-medium" : "text-[#A59FC8] border-[#2E2752] bg-[#1A1533]"}`}>
+                  {isLoggedIn ? "Session Active (1 Month)" : "Guest Session"}
+                </span>
+              </div>
+              <p className="text-[#A59FC8] leading-relaxed text-[11px]">
+                {isLoggedIn
+                  ? "Your session is preserved for 30 days in localStorage. When you launch the app, you will land directly on the Chat screen."
+                  : "Sign in with Google or enter your details once; your token will keep you logged in for 1 month."}
+              </p>
+              {isLoggedIn && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    clearStoredToken();
+                    setIsLoggedIn(false);
+                    try {
+                      localStorage.removeItem("user_profile");
+                      localStorage.removeItem("sub");
+                      localStorage.removeItem("saved_chart");
+                    } catch {}
+                    setStep("form");
+                    setFormStep(0);
+                    setTab("Home");
+                    setF({ name: "", email: "", date: "", time: "", place: "" });
+                    setChart(null);
+                    setCur(null);
+                  }}
+                  className="w-full mt-1 py-2 rounded-xl border border-rose-500/30 text-rose-300 hover:bg-rose-950/30 text-xs font-semibold transition-colors cursor-pointer"
+                >
+                  Sign Out / Reset Session
+                </button>
+              )}
             </div>
 
             <div className="pt-2 space-y-3">
