@@ -74,7 +74,7 @@
         "x-next-revalidate-tag-token"
       ]
     },
-    "/": {
+    "/privacy-policy": {
       "experimentalBypassFor": [
         {
           "type": "header",
@@ -87,8 +87,8 @@
         }
       ],
       "initialRevalidateSeconds": false,
-      "srcRoute": "/",
-      "dataRoute": "/index.rsc",
+      "srcRoute": "/privacy-policy",
+      "dataRoute": "/privacy-policy.rsc",
       "allowHeader": [
         "host",
         "x-matched-path",
@@ -122,7 +122,7 @@
         "x-next-revalidate-tag-token"
       ]
     },
-    "/privacy-policy": {
+    "/": {
       "experimentalBypassFor": [
         {
           "type": "header",
@@ -135,8 +135,8 @@
         }
       ],
       "initialRevalidateSeconds": false,
-      "srcRoute": "/privacy-policy",
-      "dataRoute": "/privacy-policy.rsc",
+      "srcRoute": "/",
+      "dataRoute": "/index.rsc",
       "allowHeader": [
         "host",
         "x-matched-path",

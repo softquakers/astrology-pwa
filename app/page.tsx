@@ -1210,10 +1210,18 @@ export default function App() {
       setCurrentAnswer(reading);
     } finally {
       setAnalyzing(false);
-      // When user asks a question and answer is given, show pop up asking if they need to attach app to screen
+      // Ensure the generated answer is visible to the user first
+      setTimeout(() => {
+        const answerEl = document.getElementById("astrological-answer-section");
+        if (answerEl) {
+          answerEl.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+      }, 150);
+
+      // After user sees the answer, show pop-up asking if interested in attaching to home screen
       setTimeout(() => {
         setShowAttachModal(true);
-      }, 500);
+      }, 1200);
     }
   }
 
@@ -2135,41 +2143,11 @@ export default function App() {
               )}
             </div>
 
-            <div className="flex items-center justify-between gap-2">
-              <div className="space-y-1">
-                <h2 className="text-xl font-bold tracking-tight text-[#EDE9FA]">Ask your question</h2>
-                <p className="text-xs sm:text-sm text-[#A59FC8]">
-                  What insights, career directions, or relationship alignments would you like to explore?
-                </p>
-              </div>
-              <div className="flex items-center gap-1.5 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => setShowAttachModal(true)}
-                  className={`text-[11px] px-2.5 py-1.5 rounded-xl border flex items-center gap-1.5 transition-colors cursor-pointer ${
-                    appAttached
-                      ? "text-emerald-300 bg-emerald-950/40 border-emerald-500/40"
-                      : "text-[#EDE9FA] hover:text-[#E8B86B] bg-[#231A40] border-[#3E346B]"
-                  }`}
-                  title={appAttached ? "App Attached to Screen" : "Attach App to Screen"}
-                >
-                  <span>📲</span>
-                  <span className="hidden sm:inline">{appAttached ? "Attached" : "Attach to Screen"}</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setApiKeyInput(openAiKey);
-                    setShowApiKeyModal(true);
-                  }}
-                  className="text-[11px] text-[#A59FC8] hover:text-[#E8B86B] bg-[#231A40] border border-[#3E346B] px-2.5 py-1.5 rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer"
-                  title="Configure ChatGPT API Key"
-                >
-                  <span>🤖</span>
-                  <span className="hidden sm:inline">ChatGPT AI</span>
-                  <span className="text-[10px] text-[#E8B86B] font-semibold">{openAiKey ? "Custom" : "Active"}</span>
-                </button>
-              </div>
+            <div className="space-y-1">
+              <h2 className="text-xl font-bold tracking-tight text-[#EDE9FA]">Ask your question</h2>
+              <p className="text-xs sm:text-sm text-[#A59FC8]">
+                What insights, career directions, or relationship alignments would you like to explore?
+              </p>
             </div>
 
             <textarea
@@ -2220,7 +2198,7 @@ export default function App() {
 
             {/* ANSWER DISPLAY (Shown below the question when subscribed) */}
             {sub && currentAnswer && (
-              <div className="space-y-4 pt-2 animate-in fade-in slide-in-from-top-2 duration-300">
+              <div id="astrological-answer-section" className="space-y-4 pt-2 animate-in fade-in slide-in-from-top-2 duration-300">
                 <div className={card + " border-[#E8B86B]/60 bg-gradient-to-b from-[#211A3D] to-[#1A1533] space-y-4 shadow-xl"}>
                   {/* Header */}
                   <div className="flex items-center justify-between border-b border-[#3E346B]/60 pb-3">
@@ -3125,7 +3103,7 @@ export default function App() {
                   📲
                 </span>
                 <div>
-                  <h3 className="text-sm font-bold text-[#EDE9FA]">Attach App to Screen</h3>
+                  <h3 className="text-sm font-bold text-[#EDE9FA]">Attach to Home Screen</h3>
                   <p className="text-[10px] text-[#E8B86B] font-semibold">1-Tap Fast Astrological Access</p>
                 </div>
               </div>
@@ -3144,10 +3122,15 @@ export default function App() {
             </div>
 
             {/* Answer prompt */}
-            <div className="space-y-2.5 text-xs">
-              <p className="text-[#EDE9FA] leading-relaxed">
-                Your astrological reading is ready! Would you like to <strong className="text-[#E8B86B]">attach Astro Reports directly to your screen</strong> for instant 1-tap access to future answers, daily horoscopes, and chart transit predictions?
-              </p>
+            <div className="space-y-3 text-xs">
+              <div className="rounded-2xl border border-[#E8B86B]/30 bg-gradient-to-r from-[#2A1D4E]/60 to-[#1F173D]/60 p-3.5 text-center space-y-1.5 shadow-md">
+                <p className="text-sm font-bold text-[#EDE9FA] leading-snug">
+                  Are you interested in attaching this app to your home screen?
+                </p>
+                <p className="text-[11px] text-[#C4BEDD] leading-relaxed">
+                  Attach Astro Reports to your home screen for instant 1-tap astrological guidance, planetary transit alerts, and future answers.
+                </p>
+              </div>
 
               {/* Benefits card */}
               <div className="rounded-2xl border border-[#2E2752] bg-[#16102B] p-3 space-y-2 text-[11px]">
@@ -3157,7 +3140,7 @@ export default function App() {
                 </div>
                 <div className="flex items-center gap-2 text-[#EDE9FA]">
                   <span className="text-[#E8B86B] text-xs">⚡</span>
-                  <span><strong>Faster Predictions:</strong> ask questions without opening browser</span>
+                  <span><strong>Faster Answers:</strong> ask questions without opening browser</span>
                 </div>
                 <div className="flex items-center gap-2 text-[#EDE9FA]">
                   <span className="text-[#E8B86B] text-xs">🔮</span>
@@ -3205,10 +3188,10 @@ export default function App() {
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
                       </svg>
-                      Attaching to Screen...
+                      Attaching to Home Screen...
                     </>
                   ) : (
-                    "✨ Yes, Attach App to Screen"
+                    "✨ Yes, Attach to Home Screen"
                   )}
                 </button>
                 <button
@@ -3219,7 +3202,7 @@ export default function App() {
                   }}
                   className="w-full rounded-xl border border-[#2E2752] py-2 text-xs text-[#A59FC8] hover:text-white cursor-pointer transition-colors"
                 >
-                  Not Now / Maybe Later
+                  No, Maybe Later
                 </button>
               </div>
             ) : (
