@@ -19,6 +19,7 @@ import {
   verifySessionToken,
   recordAttachScreen,
 } from "../lib/api";
+import { translations, Language } from "../lib/translations";
 
 declare global {
   interface Window {
@@ -115,7 +116,13 @@ function getZodiacSign(dateStr: string) {
   return signs[idx];
 }
 
-function generateAstrologicalAnswer(question: string, querentName: string, chart: Chart): AstrologicalAnswer {
+function generateAstrologicalAnswer(
+  question: string,
+  querentName: string,
+  chart: Chart,
+  language: Language = "en"
+): AstrologicalAnswer {
+  const isHi = language === "hi" || /[\u0900-\u097F]/.test(question);
   const qLower = question.toLowerCase();
 
   const sun = chart.planets.find(p => p.name === "Sun") || { name: "Sun", sign: "Aries", deg: 0, house: 1 };
@@ -127,36 +134,76 @@ function generateAstrologicalAnswer(question: string, querentName: string, chart
   const saturn = chart.planets.find(p => p.name === "Saturn") || { name: "Saturn", sign: "Capricorn", deg: 0, house: 10 };
   const asc = chart.asc || "Aries";
 
-  const isMarriage = /(marr|wedding|spouse|husband|wife|soulmate|partner|matrimon)/i.test(qLower);
-  const isLove = isMarriage || /(love|dating|romance|crush|heart|relationship|bf|gf|boyfriend|girlfriend)/i.test(qLower);
-  const isCareer = /(career|job|work|promotion|business|money|finance|wealth|grow|salary|profession|boss|company|hire|invest|2026|office|goal|success|raise)/i.test(qLower);
-  const isHealth = /(health|stress|body|vitality|energy|healing|illness|disease|mind|exhaust|diet|workout|sleep)/i.test(qLower);
+  const isMarriage = /(marr|wedding|spouse|husband|wife|soulmate|partner|matrimon|शादी|विवाह|पति|पत्नी)/i.test(qLower);
+  const isLove = isMarriage || /(love|dating|romance|crush|heart|relationship|bf|gf|boyfriend|girlfriend|प्यार|प्रेम|रिश्ता)/i.test(qLower);
+  const isCareer = /(career|job|work|promotion|business|money|finance|wealth|grow|salary|profession|boss|company|hire|invest|2026|office|goal|success|raise|नौकरी|करियर|व्यापार|व्यवसाय|धन|पैसा)/i.test(qLower);
+  const isHealth = /(health|stress|body|vitality|energy|healing|illness|disease|mind|exhaust|diet|workout|sleep|स्वास्थ्य|तबीयत|बीमारी)/i.test(qLower);
 
   let directAnswer = "";
   if (isMarriage) {
-    const marriageOptions = [
-      `Based on your 7th house alignments and upcoming Jupiter-Venus transit cycles, marriage prospects open auspiciously between late 2027 and mid-2028, marked by a deeply supportive and mutual soul connection for ${querentName}.`,
-      `Your planetary transits highlight a high-probability marriage window between Autumn 2027 and Summer 2028, with favorable Venusian currents bringing long-term stability and marital harmony.`,
-      `Cosmic configurations across your relationship axis indicate that marriage and life-partner commitments solidify between late 2026 and mid-2027, supported by grounding Saturn and expansive Jupiter placements.`,
-    ];
-    directAnswer = marriageOptions[Math.floor(Math.random() * marriageOptions.length)];
+    if (isHi) {
+      const marriageOptionsHi = [
+        `आपके 7वें भाव के शुभ प्रभाव और आगामी गुरु-शुक्र गोचर के अनुसार, 2027 के उत्तरार्ध से 2028 के मध्य तक ${querentName} के विवाह के अत्यंत शुभ और प्रबल योग बन रहे हैं।`,
+        `ग्रह गोचर के अनुसार 2027 के शरद ऋतु से 2028 की ग्रीष्म ऋतु के मध्य विवाह का श्रेष्ठ समय रहेगा, जिसमें एक समझदार और समर्पित जीवनसाथी प्राप्त होगा।`,
+        `आपके दांपत्य भाव में शुभ ग्रहों की स्थिति दर्शाती है कि 2026 के अंत से 2027 के मध्य तक विवाह से जुड़े निर्णय पक्के होंगे और दीर्घकालिक सुख प्राप्त होगा।`,
+      ];
+      directAnswer = marriageOptionsHi[Math.floor(Math.random() * marriageOptionsHi.length)];
+    } else {
+      const marriageOptions = [
+        `Based on your 7th house alignments and upcoming Jupiter-Venus transit cycles, marriage prospects open auspiciously between late 2027 and mid-2028, marked by a deeply supportive and mutual soul connection for ${querentName}.`,
+        `Your planetary transits highlight a high-probability marriage window between Autumn 2027 and Summer 2028, with favorable Venusian currents bringing long-term stability and marital harmony.`,
+        `Cosmic configurations across your relationship axis indicate that marriage and life-partner commitments solidify between late 2026 and mid-2027, supported by grounding Saturn and expansive Jupiter placements.`,
+      ];
+      directAnswer = marriageOptions[Math.floor(Math.random() * marriageOptions.length)];
+    }
   } else if (isLove) {
-    directAnswer = `Planetary alignments indicate an uplifting romantic chapter beginning over the next 4 to 8 months, where emotional reciprocity and authentic connection will flourish for ${querentName}.`;
+    directAnswer = isHi
+      ? `ग्रह स्थिति दर्शाती है कि अगले 4 से 8 महीनों में आपके जीवन में एक सुखद और आत्मीय प्रेम संबंध प्रगाढ़ होगा, जहाँ आपसी समझ और विश्वास बढ़ेगा।`
+      : `Planetary alignments indicate an uplifting romantic chapter beginning over the next 4 to 8 months, where emotional reciprocity and authentic connection will flourish for ${querentName}.`;
   } else if (isCareer) {
-    directAnswer = `Your 10th house planetary momentum indicates a decisive career breakthrough and lucrative advancement between early and mid-2027 for ${querentName}.`;
+    directAnswer = isHi
+      ? `आपकी कुंडली के 10वें भाव की ऊर्जा दर्शाती है कि 2027 के आरंभ से मध्य के बीच ${querentName} के कार्यक्षेत्र में उल्लेखनीय उन्नति और आर्थिक लाभ के प्रबल योग हैं।`
+      : `Your 10th house planetary momentum indicates a decisive career breakthrough and lucrative advancement between early and mid-2027 for ${querentName}.`;
   } else if (isHealth) {
-    directAnswer = `Your solar vitality charts a rejuvenating upward cycle starting within 3 to 5 months, provided mindful rest and restorative grounding practices are prioritized.`;
+    directAnswer = isHi
+      ? `आपकी सौर ऊर्जा अगले 3 से 5 महीनों में एक सकारात्मक और नई स्फूर्ति प्रदान करेगी, बशर्ते पर्याप्त विश्राम और नियमित दिनचर्या को प्राथमिकता दी जाए।`
+      : `Your solar vitality charts a rejuvenating upward cycle starting within 3 to 5 months, provided mindful rest and restorative grounding practices are prioritized.`;
   } else {
-    directAnswer = `Celestial configurations show favorable planetary currents aligning in your favor over the next 6 to 12 months, bringing clear resolution and fruitful progress for ${querentName}.`;
+    directAnswer = isHi
+      ? `ग्रहों की चाल दर्शाती है कि अगले 6 से 12 महीनों में परिस्थितियाँ ${querentName} के पक्ष में अनुकूल हो रही हैं, जिससे मनोवांछित फल और स्पष्ट प्रगति होगी।`
+      : `Celestial configurations show favorable planetary currents aligning in your favor over the next 6 to 12 months, bringing clear resolution and fruitful progress for ${querentName}.`;
   }
 
   if (isCareer) {
-    const baseSummary = `Your natal chart indicates strong professional momentum, with ${jupiter.name} in ${jupiter.sign} (House ${jupiter.house}) empowering upward career expansion for ${querentName}.`;
+    const baseSummary = isHi
+      ? `आपकी जन्म कुंडली कार्यक्षेत्र में मजबूत गति दर्शाती है, जहाँ गुरु की स्थिति ${querentName} के लिए व्यवसाय व पदोन्नति के मार्ग प्रशस्त कर रही है।`
+      : `Your natal chart indicates strong professional momentum, with ${jupiter.name} in ${jupiter.sign} (House ${jupiter.house}) empowering upward career expansion for ${querentName}.`;
     return {
       aiAnswer: directAnswer,
       summary: `${directAnswer} ${baseSummary}`,
-      interpretation: `With your Ascendant in ${asc} and your Sun radiating in ${sun.sign} in House ${sun.house}, your career blueprint thrives on clear vision and self-directed leadership. Jupiter's placement in House ${jupiter.house} signals that calculated boldness and strategic moves will unlock lucrative doors. Meanwhile, Saturn in ${saturn.sign} in House ${saturn.house} acts as your grounding pillar—ensuring that milestones achieved through discipline and consistency will stand firm over time.`,
-      keyPlacements: [
+      interpretation: isHi
+        ? `आपके लग्न ${asc} और सूर्य के प्रभाव से आपकी नेतृत्व क्षमता और कार्य-योजना सफलता की ओर अग्रसर है। गुरु की स्थिति दर्शाती है कि सुनियोजित निर्णय नए अवसर खोलेंगे। वहीं शनि आपके प्रयासों को दीर्घकालिक स्थायित्व प्रदान करेगा।`
+        : `With your Ascendant in ${asc} and your Sun radiating in ${sun.sign} in House ${sun.house}, your career blueprint thrives on clear vision and self-directed leadership. Jupiter's placement in House ${jupiter.house} signals that calculated boldness and strategic moves will unlock lucrative doors. Meanwhile, Saturn in ${saturn.sign} in House ${saturn.house} acts as your grounding pillar—ensuring that milestones achieved through discipline and consistency will stand firm over time.`,
+      keyPlacements: isHi ? [
+        {
+          planet: "गुरु (Jupiter)",
+          sign: jupiter.sign,
+          house: jupiter.house,
+          relevance: `भाव ${jupiter.house} में करियर के नए अवसर, मान-सम्मान और मार्गदर्शन प्रदान करता है।`,
+        },
+        {
+          planet: "शनि (Saturn)",
+          sign: saturn.sign,
+          house: saturn.house,
+          relevance: `भाव ${saturn.house} में धैर्य, परिश्रम और दीर्घकालिक स्थायित्व का फल देता है।`,
+        },
+        {
+          planet: "सूर्य (Sun)",
+          sign: sun.sign,
+          house: sun.house,
+          relevance: `कार्यक्षेत्र में आपकी प्रतिष्ठा, आत्मविश्वास और प्रभाव को चमकाता है।`,
+        },
+      ] : [
         {
           planet: "Jupiter",
           sign: jupiter.sign,
@@ -176,20 +223,49 @@ function generateAstrologicalAnswer(question: string, querentName: string, chart
           relevance: `Illuminates your executive presence in ${sun.sign}, favoring authentic leadership and visible contributions.`,
         },
       ],
-      timing: `Cosmic currents show high-momentum expansion through 2026, particularly when major transits activate your ${jupiter.sign} and 10th house placements. Establish foundations now for mid-cycle breakthroughs.`,
-      cosmicAdvice: [
+      timing: isHi
+        ? `ग्रह गोचर 2026-2027 के दौरान उच्च व्यावसायिक सफलता और प्रगति की संभावना दर्शाते हैं।`
+        : `Cosmic currents show high-momentum expansion through 2026, particularly when major transits activate your ${jupiter.sign} and 10th house placements. Establish foundations now for mid-cycle breakthroughs.`,
+      cosmicAdvice: isHi ? [
+        `अपनी ऊर्जा को प्रमुख लक्ष्यों पर केंद्रित रखें और व्यर्थ के भटकाव से बचें।`,
+        `अनुभवी लोगों से संपर्क बनाएं; सकारात्मक सहयोग से आपकी प्रगति तेज होगी।`,
+        `महत्वपूर्ण व्यावसायिक निर्णयों में अपनी अंतर्दृष्टि और विवेक पर भरोसा करें।`,
+      ] : [
         `Focus your energy on high-leverage goals rather than spreading yourself too thin.`,
         `Cultivate strategic networks; your ${sun.sign} placement shines when collaborating with visionary allies.`,
         `Trust your intuitive radar during contract discussions and milestone transitions.`,
       ],
     };
   } else if (isLove) {
-    const baseSummary = `In matters of love and relationships, your chart emphasizes emotional authenticity, with Venus in ${venus.sign} and Moon in ${moon.sign} guiding meaningful harmony.`;
+    const baseSummary = isHi
+      ? `प्रेम और दांपत्य के संदर्भ में आपकी कुंडली भावनात्मक आत्मीयता को दर्शाती है, जहाँ शुक्र और चंद्रमा का शुभ प्रभाव सकारात्मक सामंजस्य ला रहा है।`
+      : `In matters of love and relationships, your chart emphasizes emotional authenticity, with Venus in ${venus.sign} and Moon in ${moon.sign} guiding meaningful harmony.`;
     return {
       aiAnswer: directAnswer,
       summary: `${directAnswer} ${baseSummary}`,
-      interpretation: `With ${asc} rising and Venus placed in ${venus.sign} in House ${venus.house}, your romantic journey values heartfelt reciprocity and open-hearted communication. Moon in ${moon.sign} in House ${moon.house} indicates that emotional safety and mutual respect are essential before you give your full trust. Current astrological configurations suggest past emotional lessons are crystallizing into profound relational clarity.`,
-      keyPlacements: [
+      interpretation: isHi
+        ? `लग्न में ${asc} और शुक्र की शुभ स्थिति के साथ, आपका वैवाहिक जीवन प्रेम और परस्पर सम्मान पर आधारित रहेगा। चंद्रमा की स्थिति भावनात्मक सुरक्षा को प्राथमिकता देती है।`
+        : `With ${asc} rising and Venus placed in ${venus.sign} in House ${venus.house}, your romantic journey values heartfelt reciprocity and open-hearted communication. Moon in ${moon.sign} in House ${moon.house} indicates that emotional safety and mutual respect are essential before you give your full trust. Current astrological configurations suggest past emotional lessons are crystallizing into profound relational clarity.`,
+      keyPlacements: isHi ? [
+        {
+          planet: "शुक्र (Venus)",
+          sign: venus.sign,
+          house: venus.house,
+          relevance: `भाव ${venus.house} में दांपत्य सुख, आकर्षण और मधुर संबंधों को बढ़ाता है।`,
+        },
+        {
+          planet: "चंद्रमा (Moon)",
+          sign: moon.sign,
+          house: moon.house,
+          relevance: `मानसिक शांति और आंतरिक सुरक्षा को दृढ़ करता है।`,
+        },
+        {
+          planet: "मंगल (Mars)",
+          sign: mars.sign,
+          house: mars.house,
+          relevance: `भाव ${mars.house} में ऊर्जा और स्पष्ट व्यक्तिगत सीमाओं को बनाए रखने में सहायक है।`,
+        },
+      ] : [
         {
           planet: "Venus",
           sign: venus.sign,
@@ -209,20 +285,49 @@ function generateAstrologicalAnswer(question: string, querentName: string, chart
           relevance: `Supplies passion and healthy boundary-setting in ${mars.sign}, protecting your emotional energy.`,
         },
       ],
-      timing: `Favorable Venusian currents are opening windows for heart-centered conversations, deepening commitments, and emotional synchronicity.`,
-      cosmicAdvice: [
+      timing: isHi
+        ? `शुक्र और देवगुरु बृहस्पति का गोचर शुभ समय और सुखद संवाद के नए अवसर निर्मित कर रहा है।`
+        : `Favorable Venusian currents are opening windows for heart-centered conversations, deepening commitments, and emotional synchronicity.`,
+      cosmicAdvice: isHi ? [
+        `अपनी भावनाओं को स्पष्ट और सकारात्मक ढंग से व्यक्त करें; स्पष्टता से विश्वास गहरा होता है।`,
+        `परस्पर सम्मान बनाए रखें—एक संतुलित साझेदारी आपके मानसिक सुख को बढ़ाती है।`,
+        `रिश्ते को स्वाभाविक गति से विकसित होने दें।`,
+      ] : [
         `Express your feelings openly and directly; clarity invites reciprocated vulnerability.`,
         `Uphold personal boundaries—a healthy partnership amplifies your peace.`,
         `Allow new connections or existing bonds to evolve at an unhurried, natural tempo.`,
       ],
     };
   } else if (isHealth) {
-    const baseSummary = `Your chart highlights rejuvenation and somatic balance as priorities, anchored by Sun in ${sun.sign} and Mars in ${mars.sign}.`;
+    const baseSummary = isHi
+      ? `आपकी कुंडली में स्वास्थ्य और संतुलन को प्राथमिकता दी गई है, जहाँ सूर्य और मंगल ऊर्जा का संचार कर रहे हैं।`
+      : `Your chart highlights rejuvenation and somatic balance as priorities, anchored by Sun in ${sun.sign} and Mars in ${mars.sign}.`;
     return {
       aiAnswer: directAnswer,
       summary: `${directAnswer} ${baseSummary}`,
-      interpretation: `With ${asc} rising, your physical constitution is intimately tied to your mental surroundings. Mars in ${mars.sign} in House ${mars.house} grants potent regenerative vigor, but urges moderation against prolonged stress. Moon in ${moon.sign} reveals that restorative sleep, mindfulness, and grounding rituals are direct prerequisites for your vitality.`,
-      keyPlacements: [
+      interpretation: isHi
+        ? `लग्न में ${asc} के साथ आपका शारीरिक स्वास्थ्य मानसिक वातावरण से गहराई से जुड़ा हुआ है। पर्याप्त विश्राम और ध्यान से ऊर्जा बनी रहेगी।`
+        : `With ${asc} rising, your physical constitution is intimately tied to your mental surroundings. Mars in ${mars.sign} in House ${mars.house} grants potent regenerative vigor, but urges moderation against prolonged stress. Moon in ${moon.sign} reveals that restorative sleep, mindfulness, and grounding rituals are direct prerequisites for your vitality.`,
+      keyPlacements: isHi ? [
+        {
+          planet: "सूर्य (Sun)",
+          sign: sun.sign,
+          house: sun.house,
+          relevance: `आपकी जीवन शक्ति और रोग प्रतिरोधक क्षमता को बढ़ाता है।`,
+        },
+        {
+          planet: "मंगल (Mars)",
+          sign: mars.sign,
+          house: mars.house,
+          relevance: `भाव ${mars.house} में शारीरिक सहनशक्ति और ऊर्जा प्रदान करता है।`,
+        },
+        {
+          planet: "चंद्रमा (Moon)",
+          sign: moon.sign,
+          house: moon.house,
+          relevance: `मानसिक शांति, नींद और भावनात्मक संतुलन को प्रभावित करता है।`,
+        },
+      ] : [
         {
           planet: "Sun",
           sign: sun.sign,
@@ -242,20 +347,49 @@ function generateAstrologicalAnswer(question: string, querentName: string, chart
           relevance: `Influences your internal biorhythms, nervous system recharge, and emotional balance.`,
         },
       ],
-      timing: `The celestial sky calls for conscious pacing and restorative practices over relentless hustle.`,
-      cosmicAdvice: [
+      timing: isHi
+        ? `आकाशीय स्थिति निरंतर भागदौड़ के स्थान पर सचेत दिनचर्या अपनाने का संकेत देती है।`
+        : `The celestial sky calls for conscious pacing and restorative practices over relentless hustle.`,
+      cosmicAdvice: isHi ? [
+        `सकारात्मक ऊर्जा बनाए रखने के लिए दैनिक ध्यान और विश्राम करें।`,
+        `पर्याप्त नींद और संतुलित खान-पान को प्राथमिकता दें।`,
+        `थकावट महसूस होने पर शरीर को पर्याप्त आराम दें।`,
+      ] : [
         `Incorporate daily grounding rituals to settle active ${sun.sign} mental energy.`,
         `Prioritize restorative sleep and hydration to keep physical channels fluid and calm.`,
         `Heed early somatic whispers before your body is forced to demand rest.`,
       ],
     };
   } else {
-    const baseSummary = `Your natal chart indicates an inspiring chapter of personal alignment and cosmic clarity unfolding for ${querentName}.`;
+    const baseSummary = isHi
+      ? `आपकी जन्म कुंडली ${querentName} के जीवन में एक प्रेरक और स्पष्टता से भरे नए अध्याय के आरंभ का संकेत दे रही है।`
+      : `Your natal chart indicates an inspiring chapter of personal alignment and cosmic clarity unfolding for ${querentName}.`;
     return {
       aiAnswer: directAnswer,
       summary: `${directAnswer} ${baseSummary}`,
-      interpretation: `Examining your inquiry through your ${asc} Ascendant and ${sun.sign} Sun reveals a powerful awakening of self-trust. Mercury in ${mercury.sign} in House ${mercury.house} provides sharp discernment and perspective, while Jupiter in ${jupiter.sign} in House ${jupiter.house} offers cosmic protection. Aligning your day-to-day choices with your authentic core values will generate immediate peace and progress.`,
-      keyPlacements: [
+      interpretation: isHi
+        ? `लग्न ${asc} से विश्लेषण करने पर आत्म-विश्वास और निर्णय क्षमता में स्पष्ट वृद्धि परिलक्षित होती है। बुध विवेक प्रदान करता है और गुरु सौभाग्य की वृद्धि करता है।`
+        : `Examining your inquiry through your ${asc} Ascendant and ${sun.sign} Sun reveals a powerful awakening of self-trust. Mercury in ${mercury.sign} in House ${mercury.house} provides sharp discernment and perspective, while Jupiter in ${jupiter.sign} in House ${jupiter.house} offers cosmic protection. Aligning your day-to-day choices with your authentic core values will generate immediate peace and progress.`,
+      keyPlacements: isHi ? [
+        {
+          planet: "सूर्य (Sun)",
+          sign: sun.sign,
+          house: sun.house,
+          relevance: `आपकी मौलिक पहचान और आत्मबल को संबल प्रदान करता है।`,
+        },
+        {
+          planet: "गुरु (Jupiter)",
+          sign: jupiter.sign,
+          house: jupiter.house,
+          relevance: `भाव ${jupiter.house} में ज्ञान, सुरक्षा और सौभाग्य का संचार करता है।`,
+        },
+        {
+          planet: "बुध (Mercury)",
+          sign: mercury.sign,
+          house: mercury.house,
+          relevance: `विश्लेषणात्मक स्पष्टता और विवेक को तीव्र करता है।`,
+        },
+      ] : [
         {
           planet: "Sun",
           sign: sun.sign,
@@ -275,8 +409,14 @@ function generateAstrologicalAnswer(question: string, querentName: string, chart
           relevance: `Sharpens analytical clarity, decision-making, and communication in ${mercury.sign}.`,
         },
       ],
-      timing: `Planetary transits are aligning in your favor. Trust the unfolding timing and take intentional steps toward what truly resonates with your spirit.`,
-      cosmicAdvice: [
+      timing: isHi
+        ? `ग्रह आपके अनुकूल परिणाम देने की दिशा में अग्रसर हैं। समय पर भरोसा रखें।`
+        : `Planetary transits are aligning in your favor. Trust the unfolding timing and take intentional steps toward what truly resonates with your spirit.`,
+      cosmicAdvice: isHi ? [
+        `आत्मविश्वास के साथ आगे बढ़ें; जो आपके लिए श्रेष्ठ है वह आपको अवश्य मिलेगा।`,
+        `अपनी आंतरिक प्रेरणाओं पर ध्यान दें, उनमें व्यवहारिक मार्गदर्शन छिपा है।`,
+        `अपने पूर्व अनुभवों को इस नए चरण की मजबूत नींव समझें।`,
+      ] : [
         `Lead with authentic conviction; what is meant for you will not pass you by.`,
         `Note down your intuitive impressions; they hold practical wisdom for your upcoming path.`,
         `Acknowledge your past growth as the steady foundation for this next phase.`,
@@ -285,62 +425,72 @@ function generateAstrologicalAnswer(question: string, querentName: string, chart
   }
 }
 
-const Report = ({ r }: { r: Rec }) => (
-  <div className={card + " space-y-3"}>
-    <div className="flex items-center justify-between border-b border-[#2E2752] pb-2">
-      <span className="text-xs uppercase tracking-wider text-[#A59FC8]">Astrological Reading</span>
-      <span className="text-xs text-[#E8B86B] font-medium">{r.at}</span>
-    </div>
-    <div>
-      <div className="text-xs text-[#A59FC8]">Querent</div>
-      <p className="font-medium text-[#EDE9FA]">{r.name}</p>
-    </div>
-    <div>
-      <div className="text-xs text-[#A59FC8]">Question</div>
-      <p className="italic text-[#EDE9FA]">"{r.q}"</p>
-    </div>
-    {r.answer && (
-      <div className="rounded-xl bg-[#241D42] p-3 text-xs space-y-2.5 border border-[#E8B86B]/30">
-        {r.answer.aiAnswer && (
-          <div className="rounded-lg bg-[#2C214D] p-2.5 border border-[#E8B86B]/40 space-y-1">
-            <div className="font-bold text-[#E8B86B] flex items-center gap-1.5 text-[11px] uppercase tracking-wider">
-              <span>✨</span> Direct Answer:
+const Report = ({ r, lang = "en" }: { r: Rec; lang?: Language }) => {
+  const t = translations[lang];
+  return (
+    <div className={card + " space-y-3"}>
+      <div className="flex items-center justify-between border-b border-[#2E2752] pb-2">
+        <span className="text-xs uppercase tracking-wider text-[#A59FC8]">{t.reading.title}</span>
+        <span className="text-xs text-[#E8B86B] font-medium">{r.at}</span>
+      </div>
+      <div>
+        <div className="text-xs text-[#A59FC8]">{lang === "hi" ? "प्रयोक्ता" : "Querent"}</div>
+        <p className="font-medium text-[#EDE9FA]">{r.name}</p>
+      </div>
+      <div>
+        <div className="text-xs text-[#A59FC8]">{t.reading.yourQuestion}</div>
+        <p className="italic text-[#EDE9FA]">"{r.q}"</p>
+      </div>
+      {r.answer && (
+        <div className="rounded-xl bg-[#241D42] p-3 text-xs space-y-2.5 border border-[#E8B86B]/30">
+          {r.answer.aiAnswer && (
+            <div className="rounded-lg bg-[#2C214D] p-2.5 border border-[#E8B86B]/40 space-y-1">
+              <div className="font-bold text-[#E8B86B] flex items-center gap-1.5 text-[11px] uppercase tracking-wider">
+                <span>✨</span> {t.reading.directAnswer}:
+              </div>
+              <p className="text-[#EDE9FA] font-medium leading-relaxed">{r.answer.aiAnswer}</p>
             </div>
-            <p className="text-[#EDE9FA] font-medium leading-relaxed">{r.answer.aiAnswer}</p>
+          )}
+          <div className="font-semibold text-[#E8B86B] flex items-center gap-1.5">
+            <span>🔮</span> {t.reading.synthesis}:
           </div>
-        )}
-        <div className="font-semibold text-[#E8B86B] flex items-center gap-1.5">
-          <span>🔮</span> Cosmic Synthesis:
+          <p className="text-[#EDE9FA] font-medium">{r.answer.summary}</p>
+          <p className="text-[#D6D1EE] leading-relaxed">{r.answer.interpretation}</p>
         </div>
-        <p className="text-[#EDE9FA] font-medium">{r.answer.summary}</p>
-        <p className="text-[#D6D1EE] leading-relaxed">{r.answer.interpretation}</p>
+      )}
+      <div className="rounded-xl bg-[#241D42] p-3 text-sm">
+        <div className="font-semibold text-[#E8B86B]">
+          {lang === "hi" ? "लग्न (राइजिंग साइन):" : "Ascendant (Rising Sign):"} {r.chart.asc}
+        </div>
+        <div className="mt-2 space-y-1 text-xs text-[#D6D1EE]">
+          {r.chart.planets.map(p => (
+            <div key={p.name} className="flex justify-between">
+              <span>{t.planets[p.name] || p.name}</span>
+              <span className="text-[#A59FC8]">
+                {t.zodiacs[p.sign] || p.sign} {p.deg.toFixed(1)}° · {t.reading.house} {p.house}
+              </span>
+            </div>
+          ))}
+        </div>
       </div>
-    )}
-    <div className="rounded-xl bg-[#241D42] p-3 text-sm">
-      <div className="font-semibold text-[#E8B86B]">Ascendant (Rising Sign): {r.chart.asc}</div>
-      <div className="mt-2 space-y-1 text-xs text-[#D6D1EE]">
-        {r.chart.planets.map(p => (
-          <div key={p.name} className="flex justify-between">
-            <span>{p.name}</span>
-            <span className="text-[#A59FC8]">{p.sign} {p.deg.toFixed(1)}° · House {p.house}</span>
-          </div>
-        ))}
+      <div>
+        <div className="text-xs text-[#A59FC8]">{lang === "hi" ? "ग्रह दृष्टियां" : "Aspects"}</div>
+        <p className="text-xs text-[#EDE9FA]">
+          {r.chart.aspects.join(", ") || (lang === "hi" ? "कोई प्रमुख दृष्टि नहीं मिली" : "No major aspects found")}
+        </p>
       </div>
+      <p className="text-[11px] text-[#7C75A3] border-t border-[#2E2752] pt-2">
+        {t.reading.ephemerisNote}
+      </p>
     </div>
-    <div>
-      <div className="text-xs text-[#A59FC8]">Aspects</div>
-      <p className="text-xs text-[#EDE9FA]">{r.chart.aspects.join(", ") || "No major aspects found"}</p>
-    </div>
-    <p className="text-[11px] text-[#7C75A3] border-t border-[#2E2752] pt-2">
-      Calculated using high-precision planetary ephemeris.
-    </p>
-  </div>
-);
+  );
+};
 
 export default function App() {
   const [tab, setTab] = useState<(typeof TABS)[number]>("Home");
   const [step, setStep] = useState<"form" | "ask" | "locked" | "report">("form");
   const [formStep, setFormStep] = useState<number>(0); // 0: Name, 1: Email, 2: Photo, 3: DOB, 4: Time, 5: Place
+  const [lang, setLang] = useState<Language>("hi");
 
   const [f, setF] = useState({ name: "", email: "", date: "", time: "", place: "" });
   const [photoUrl, setPhotoUrl] = useState<string>("");
@@ -573,6 +723,10 @@ export default function App() {
 
   useEffect(() => {
     try {
+      const savedLang = localStorage.getItem("app_lang") as Language | null;
+      if (savedLang === "en" || savedLang === "hi") {
+        setLang(savedLang);
+      }
       if (localStorage.getItem("app_attached_screen") === "true") {
         setAppAttached(true);
       }
@@ -1172,14 +1326,15 @@ export default function App() {
     try {
       const reading = await askAstrologyQuestion({
         question: q.trim(),
-        name: f.name.trim() || "Querent",
+        name: f.name.trim() || (lang === "hi" ? "प्रयोक्ता" : "Querent"),
         chart,
         customApiKey: openAiKey.trim() || undefined,
+        language: lang,
       });
 
       const r: Rec = {
         q,
-        name: f.name || "Querent",
+        name: f.name || (lang === "hi" ? "प्रयोक्ता" : "Querent"),
         at: new Date().toLocaleDateString(),
         chart,
         answer: reading,
@@ -1193,7 +1348,7 @@ export default function App() {
       setCurrentAnswer(reading);
     } catch (err) {
       console.warn("API ask failed, using client astrological engine:", err);
-      const reading = generateAstrologicalAnswer(q, f.name || "Querent", chart);
+      const reading = generateAstrologicalAnswer(q, f.name || (lang === "hi" ? "प्रयोक्ता" : "Querent"), chart, lang);
       const r: Rec = {
         q,
         name: f.name || "Querent",
@@ -1499,13 +1654,22 @@ export default function App() {
     initiateUpiAutopay("monthly");
   }
 
+  const switchLanguage = (newLang: Language) => {
+    setLang(newLang);
+    try {
+      localStorage.setItem("app_lang", newLang);
+    } catch {}
+  };
+
+  const t = translations[lang];
+
   const stepsMeta = [
-    { label: "Name", icon: "👤", desc: "Identity" },
-    { label: "Email", icon: "✉️", desc: "Account" },
-    { label: "Photo", icon: "📷", desc: "Portrait" },
-    { label: "Birth Date", icon: "📅", desc: "Sun Sign" },
-    { label: "Birth Time", icon: "🕒", desc: "Ascendant" },
-    { label: "Birth Place", icon: "📍", desc: "Coordinates" },
+    { label: t.steps.name.label, icon: "👤", desc: t.steps.name.badge },
+    { label: t.steps.email.label, icon: "✉️", desc: t.steps.email.badge },
+    { label: t.steps.photo.label, icon: "📷", desc: t.steps.photo.badge },
+    { label: t.steps.dob.label, icon: "📅", desc: t.steps.dob.badge },
+    { label: t.steps.tob.label, icon: "🕒", desc: t.steps.tob.badge },
+    { label: t.steps.pob.label, icon: "📍", desc: t.steps.pob.badge },
   ];
 
   const zodiac = getZodiacSign(f.date);
@@ -1522,50 +1686,37 @@ export default function App() {
               ✨
             </span>
             <div className="flex flex-col leading-tight">
-              <span className="font-bold tracking-wide text-sm sm:text-base text-[#EDE9FA]">Astrology App</span>
-              <span className="text-[10px] text-[#A59FC8]">Astro Reports</span>
+              <span className="font-bold tracking-wide text-sm sm:text-base text-[#EDE9FA]">{t.appName}</span>
+              <span className="text-[10px] text-[#A59FC8]">{t.appSubtitle}</span>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
-            {/* Account Action Button (if signed in or chart ready) */}
-            {(isGoogleLogin || isLoggedIn || chart) && (
-              <button
-                type="button"
-                onClick={() => {
-                  if (chart) {
-                    setStep("ask");
-                    setTab("Home");
-                  } else {
-                    setTab("Profile");
-                  }
-                }}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-[#201A3D] hover:bg-[#2C2454] border border-[#443875] text-[#EDE9FA] transition-colors cursor-pointer"
-                title={chart ? "View your birth chart" : "View profile"}
-              >
-                {photoUrl ? (
-                  <img src={photoUrl} alt="User" className="h-4 w-4 rounded-full object-cover border border-[#E8B86B]" />
-                ) : (
-                  <span className="h-2 w-2 rounded-full bg-emerald-400" />
-                )}
-                <span className="truncate max-w-[80px] text-[11px] font-medium">
-                  {chart ? "Chart Ready" : (f.name ? f.name.split(" ")[0] : "Account")}
-                </span>
-              </button>
-            )}
-
-            {sub ? (
-              <span className="rounded-full bg-[#E8B86B]/20 px-2.5 py-0.5 text-xs font-medium text-[#E8B86B] border border-[#E8B86B]/30">
-                Premium
-              </span>
-            ) : (
-              <button
-                onClick={() => setTab("Plans")}
-                className="text-xs text-[#E8B86B] hover:underline cursor-pointer"
-              >
-                Upgrade
-              </button>
-            )}
+          {/* Language Toggle Button (replacing Chart Ready badge & Premium button) */}
+          <div className="flex items-center rounded-full bg-[#181233] p-1 border border-[#3E346B] shadow-inner shrink-0">
+            <button
+              type="button"
+              onClick={() => switchLanguage("en")}
+              className={`px-3 py-1 text-xs font-semibold rounded-full transition-all cursor-pointer ${
+                lang === "en"
+                  ? "bg-gradient-to-r from-[#E8B86B] to-[#FFD584] text-[#1A1230] font-bold shadow-sm"
+                  : "text-[#A59FC8] hover:text-[#EDE9FA]"
+              }`}
+              title="Switch to English"
+            >
+              English
+            </button>
+            <button
+              type="button"
+              onClick={() => switchLanguage("hi")}
+              className={`px-3 py-1 text-xs font-semibold rounded-full transition-all cursor-pointer ${
+                lang === "hi"
+                  ? "bg-gradient-to-r from-[#E8B86B] to-[#FFD584] text-[#1A1230] font-bold shadow-sm"
+                  : "text-[#A59FC8] hover:text-[#EDE9FA]"
+              }`}
+              title="हिंदी में बदलें"
+            >
+              हिंदी
+            </button>
           </div>
         </header>
 
@@ -1573,10 +1724,10 @@ export default function App() {
         {tab === "Home" && (
           <section className="space-y-1.5 text-center pt-1">
             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#EDE9FA]">
-              Astrology App
+              {t.heroTitle}
             </h1>
             <p className="text-xs text-[#A59FC8] leading-relaxed max-w-sm mx-auto">
-              हम आपका भविष्य बताने के लिए जन्म कुंडली और चेहरा पढ़ने की विद्या दोनों का एक साथ उपयोग करते हैं। क्या हम शुरू करें?
+              {t.heroSubtitle}
             </p>
           </section>
         )}
@@ -1593,10 +1744,10 @@ export default function App() {
                       onClick={() => setFormStep(s => Math.max(0, s - 1))}
                       className="mr-1 text-[#E8B86B] hover:text-[#FFE2A4] transition-colors flex items-center gap-1 cursor-pointer"
                     >
-                      ← Back
+                      {t.steps.back}
                     </button>
                   )}
-                  <span>Step {formStep + 1} of 6</span>
+                  <span>{t.steps.stepOf(formStep + 1, 6)}</span>
                 </div>
                 <span className="text-[#E8B86B] font-semibold">{stepsMeta[formStep].label}</span>
               </div>
@@ -1636,11 +1787,11 @@ export default function App() {
               <section className="space-y-5 animate-in fade-in duration-200">
                 <div className="space-y-1">
                   <div className="inline-flex items-center gap-2 rounded-full bg-[#E8B86B]/10 px-3 py-1 text-xs text-[#E8B86B] border border-[#E8B86B]/20">
-                    <span>👤</span> Personal Identity
+                    <span>👤</span> {t.steps.name.badge}
                   </div>
-                  <h1 className="text-2xl font-bold tracking-tight text-[#EDE9FA]">What's your full name?</h1>
+                  <h1 className="text-2xl font-bold tracking-tight text-[#EDE9FA]">{t.steps.name.title}</h1>
                   <p className="text-sm text-[#A59FC8]">
-                    We'll customize your celestial readings and birth chart reports with your name.
+                    {t.steps.name.desc}
                   </p>
                 </div>
 
@@ -1649,7 +1800,7 @@ export default function App() {
                     <input
                       type="text"
                       className={inp}
-                      placeholder="e.g. Eleanor Vance"
+                      placeholder={t.steps.name.placeholder}
                       value={f.name}
                       autoFocus
                       onChange={handleTextChange("name")}
@@ -1661,7 +1812,7 @@ export default function App() {
 
                   {f.name.trim().length > 0 && (
                     <p className="text-xs text-[#A59FC8]">
-                      Nice to meet you, <span className="font-semibold text-[#E8B86B]">{f.name.trim()}</span>!
+                      {lang === "hi" ? "नमस्ते," : "Nice to meet you,"} <span className="font-semibold text-[#E8B86B]">{f.name.trim()}</span>!
                     </p>
                   )}
                 </div>
@@ -1672,7 +1823,7 @@ export default function App() {
                   disabled={!f.name.trim()}
                   onClick={() => setFormStep(1)}
                 >
-                  Continue →
+                  {t.steps.name.btn}
                 </button>
               </section>
             )}
@@ -1682,11 +1833,11 @@ export default function App() {
               <section className="space-y-5 animate-in fade-in duration-200">
                 <div className="space-y-1">
                   <div className="inline-flex items-center gap-2 rounded-full bg-[#E8B86B]/10 px-3 py-1 text-xs text-[#E8B86B] border border-[#E8B86B]/20">
-                    <span>✉️</span> Communication
+                    <span>✉️</span> {t.steps.email.badge}
                   </div>
-                  <h1 className="text-2xl font-bold tracking-tight text-[#EDE9FA]">What's your email address?</h1>
+                  <h1 className="text-2xl font-bold tracking-tight text-[#EDE9FA]">{t.steps.email.title}</h1>
                   <p className="text-sm text-[#A59FC8]">
-                    Enter your email address to receive your birth chart reading.
+                    {t.steps.email.desc}
                   </p>
                 </div>
 
@@ -1694,7 +1845,7 @@ export default function App() {
                   <input
                     type="email"
                     className={inp}
-                    placeholder="name@example.com"
+                    placeholder={t.steps.email.placeholder}
                     value={f.email}
                     autoFocus={!isGoogleLogin}
                     onChange={handleTextChange("email")}
@@ -1706,7 +1857,7 @@ export default function App() {
                   {isGoogleLogin && (
                     <div className="flex items-center gap-2 rounded-lg bg-[#273B2F] border border-[#3A6B4C] px-3 py-2 text-xs text-[#8EF2B0]">
                       <span>✓</span>
-                      <span>Signed in via Google: <strong>{f.email}</strong></span>
+                      <span>{lang === "hi" ? "गूगल द्वारा लॉग इन:" : "Signed in via Google:"} <strong>{f.email}</strong></span>
                     </div>
                   )}
                 </div>
@@ -1717,7 +1868,7 @@ export default function App() {
                   disabled={!isEmailValid}
                   onClick={() => setFormStep(2)}
                 >
-                  Continue →
+                  {t.steps.email.btn}
                 </button>
               </section>
             )}
@@ -1727,11 +1878,11 @@ export default function App() {
               <section className="space-y-5 animate-in fade-in duration-200">
                 <div className="space-y-1">
                   <div className="inline-flex items-center gap-2 rounded-full bg-[#E8B86B]/10 px-3 py-1 text-xs text-[#E8B86B] border border-[#E8B86B]/20">
-                    <span>📷</span> Visual Dossier
+                    <span>📷</span> {t.steps.photo.badge}
                   </div>
-                  <h1 className="text-2xl font-bold tracking-tight text-[#EDE9FA]">Take your real photo</h1>
+                  <h1 className="text-2xl font-bold tracking-tight text-[#EDE9FA]">{t.steps.photo.title}</h1>
                   <p className="text-sm text-[#A59FC8]">
-                    Capture a live portrait using your physical camera for your personalized astral dossier.
+                    {t.steps.photo.desc}
                   </p>
                 </div>
 
@@ -1741,7 +1892,7 @@ export default function App() {
                     <div className="relative w-64 h-64 sm:w-72 sm:h-72 mx-auto rounded-3xl overflow-hidden border-2 border-[#8EF2B0]/80 shadow-[0_0_35px_rgba(142,242,176,0.25)] bg-[#0C091A]">
                       <img src={photoUrl} alt="Captured portrait" className="w-full h-full object-cover" />
                       <div className="absolute top-3 left-3 bg-[#8EF2B0]/95 text-[#0A170F] text-[11px] font-bold px-3 py-1 rounded-full flex items-center gap-1.5 shadow">
-                        <span>✓</span> Real Photo Captured
+                        <span>✓</span> {lang === "hi" ? "फोटो सुरक्षित हुई" : "Real Photo Captured"}
                       </div>
                     </div>
 
@@ -1751,7 +1902,7 @@ export default function App() {
                         onClick={handleRetakePhoto}
                         className="text-xs text-[#E8B86B] hover:text-[#FFE2A4] flex items-center gap-1 cursor-pointer font-semibold transition-colors"
                       >
-                        🔄 Retake Real Photo
+                        🔄 {t.steps.photo.retake}
                       </button>
                       <span className="text-[#4A4180]">|</span>
                       <button
@@ -1762,7 +1913,7 @@ export default function App() {
                         }}
                         className="text-xs text-red-400 hover:text-red-300 hover:underline cursor-pointer transition-colors"
                       >
-                        Remove
+                        {lang === "hi" ? "हटाएं" : "Remove"}
                       </button>
                     </div>
 
@@ -1771,7 +1922,7 @@ export default function App() {
                       className={btn}
                       onClick={() => setFormStep(3)}
                     >
-                      Continue with Photo →
+                      {t.steps.continue}
                     </button>
                   </div>
                 ) : (
@@ -1790,7 +1941,7 @@ export default function App() {
                       {isCameraStarting && (
                         <div className="absolute inset-0 bg-[#0C091A]/85 flex flex-col items-center justify-center text-[#E8B86B] text-xs gap-2">
                           <span className="animate-spin text-2xl">✨</span>
-                          <span className="font-medium">Opening physical camera...</span>
+                          <span className="font-medium">{lang === "hi" ? "कैमरा शुरू हो रहा है..." : "Opening physical camera..."}</span>
                         </div>
                       )}
 
@@ -1801,7 +1952,7 @@ export default function App() {
                             <div className="w-5 h-5 border-t-2 border-l-2 border-[#E8B86B]/80 rounded-tl-lg" />
                             <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-black/60 backdrop-blur-sm border border-[#8EF2B0]/40 text-[10px] text-[#8EF2B0] font-medium">
                               <span className="w-1.5 h-1.5 rounded-full bg-[#8EF2B0] animate-ping" />
-                              Live Camera
+                              {lang === "hi" ? "लाइव कैमरा" : "Live Camera"}
                             </div>
                             <div className="w-5 h-5 border-t-2 border-r-2 border-[#E8B86B]/80 rounded-tr-lg" />
                           </div>
@@ -1827,7 +1978,7 @@ export default function App() {
                             onClick={() => startCamera(facingMode)}
                             className="px-3.5 py-1.5 rounded-xl bg-[#E8B86B]/20 text-[#E8B86B] hover:bg-[#E8B86B]/30 text-xs font-semibold cursor-pointer"
                           >
-                            Try Camera Again
+                            {lang === "hi" ? "पुनः प्रयास करें" : "Try Camera Again"}
                           </button>
                         </div>
                       </div>
@@ -1842,7 +1993,7 @@ export default function App() {
                         className="w-full py-3.5 px-6 rounded-2xl bg-gradient-to-r from-[#E8B86B] via-[#F3D08A] to-[#E8B86B] text-[#120E24] font-bold text-sm shadow-lg shadow-[#E8B86B]/20 hover:shadow-xl hover:scale-[1.01] active:scale-[0.99] transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <span className="w-3.5 h-3.5 rounded-full bg-red-600 border-2 border-white animate-pulse" />
-                        Take Real Photo
+                        {t.steps.photo.capture}
                       </button>
 
                       <div className="flex items-center justify-between w-full px-2 text-xs">
@@ -1851,13 +2002,13 @@ export default function App() {
                           onClick={toggleCameraFacing}
                           className="text-[#A59FC8] hover:text-[#EDE9FA] transition-colors flex items-center gap-1 cursor-pointer"
                         >
-                          🔄 Flip Camera ({facingMode === "user" ? "Front" : "Back"})
+                          🔄 {t.steps.photo.flip} ({facingMode === "user" ? (lang === "hi" ? "फ्रंट" : "Front") : (lang === "hi" ? "बैक" : "Back")})
                         </button>
                         <label
                           htmlFor="fallback-photo-upload"
                           className="text-[#A59FC8] hover:text-[#EDE9FA] cursor-pointer underline"
                         >
-                          Upload file instead
+                          {t.steps.photo.upload}
                         </label>
                         <input
                           id="fallback-photo-upload"
@@ -1874,7 +2025,7 @@ export default function App() {
                           onClick={() => setFormStep(3)}
                           className="py-1 text-xs text-[#A59FC8] hover:text-[#EDE9FA] cursor-pointer"
                         >
-                          Skip photo for now
+                          {t.steps.photo.skip}
                         </button>
                       </div>
                     </div>
@@ -1888,21 +2039,21 @@ export default function App() {
               <section className="space-y-5 animate-in fade-in duration-200">
                 <div className="space-y-1">
                   <div className="inline-flex items-center gap-2 rounded-full bg-[#E8B86B]/10 px-3 py-1 text-xs text-[#E8B86B] border border-[#E8B86B]/20">
-                    <span>📅</span> Solar Alignment
+                    <span>📅</span> {t.steps.dob.badge}
                   </div>
-                  <h1 className="text-2xl font-bold tracking-tight text-[#EDE9FA]">When were you born?</h1>
+                  <h1 className="text-2xl font-bold tracking-tight text-[#EDE9FA]">{t.steps.dob.title}</h1>
                   <p className="text-sm text-[#A59FC8]">
-                    Your date of birth pinpoints the Sun's degree along the zodiac belt.
+                    {t.steps.dob.desc}
                   </p>
                 </div>
 
                 <div className="space-y-4">
                   <div className="space-y-1">
-                    <label className="text-xs font-medium text-[#A59FC8]">Date of birth</label>
+                    <label className="text-xs font-medium text-[#A59FC8]">{t.steps.dob.fieldLabel}</label>
                     <input
                       type="date"
                       className={inp}
-                      aria-label="Date of birth"
+                      aria-label={t.steps.dob.fieldLabel}
                       value={f.date}
                       autoFocus
                       onChange={handleTextChange("date")}
@@ -1919,8 +2070,8 @@ export default function App() {
                         {zodiac.symbol}
                       </div>
                       <div>
-                        <div className="text-xs uppercase tracking-wider text-[#A59FC8]">Calculated Sun Sign</div>
-                        <div className="text-base font-bold text-[#E8B86B]">{zodiac.name} {zodiac.symbol}</div>
+                        <div className="text-xs uppercase tracking-wider text-[#A59FC8]">{t.steps.dob.sunSign}</div>
+                        <div className="text-base font-bold text-[#E8B86B]">{t.zodiacs[zodiac.name] || zodiac.name} {zodiac.symbol}</div>
                       </div>
                     </div>
                   )}
@@ -1932,7 +2083,7 @@ export default function App() {
                   disabled={!f.date}
                   onClick={() => setFormStep(4)}
                 >
-                  Continue →
+                  {t.steps.continue}
                 </button>
               </section>
             )}
@@ -1942,21 +2093,21 @@ export default function App() {
               <section className="space-y-5 animate-in fade-in duration-200">
                 <div className="space-y-1">
                   <div className="inline-flex items-center gap-2 rounded-full bg-[#E8B86B]/10 px-3 py-1 text-xs text-[#E8B86B] border border-[#E8B86B]/20">
-                    <span>🕒</span> Ascendant Precision
+                    <span>🕒</span> {t.steps.tob.badge}
                   </div>
-                  <h1 className="text-2xl font-bold tracking-tight text-[#EDE9FA]">What time were you born?</h1>
+                  <h1 className="text-2xl font-bold tracking-tight text-[#EDE9FA]">{t.steps.tob.title}</h1>
                   <p className="text-sm text-[#A59FC8]">
-                    Crucial for calculating your Rising Sign (Ascendant) and accurate astrological houses.
+                    {t.steps.tob.desc}
                   </p>
                 </div>
 
                 <div className="space-y-3">
                   <div className="space-y-1">
-                    <label className="text-xs font-medium text-[#A59FC8]">Time of birth (24h or AM/PM)</label>
+                    <label className="text-xs font-medium text-[#A59FC8]">{t.steps.tob.fieldLabel}</label>
                     <input
                       type="time"
                       className={inp}
-                      aria-label="Time of birth"
+                      aria-label={t.steps.tob.fieldLabel}
                       value={f.time}
                       autoFocus
                       onChange={handleTextChange("time")}
@@ -1972,10 +2123,10 @@ export default function App() {
                       onClick={() => setF(prev => ({ ...prev, time: "12:00" }))}
                       className="text-xs text-[#E8B86B] hover:underline cursor-pointer"
                     >
-                      Don't know exact time? Use 12:00 PM (Noon)
+                      {t.steps.tob.noonHint}
                     </button>
                     {f.time && (
-                      <span className="text-xs text-[#8EF2B0]">Selected: {f.time}</span>
+                      <span className="text-xs text-[#8EF2B0]">{t.steps.tob.selected} {f.time}</span>
                     )}
                   </div>
                 </div>
@@ -1986,7 +2137,7 @@ export default function App() {
                   disabled={!f.time}
                   onClick={() => setFormStep(5)}
                 >
-                  Continue →
+                  {t.steps.continue}
                 </button>
               </section>
             )}
@@ -1996,21 +2147,21 @@ export default function App() {
               <section className="space-y-5 animate-in fade-in duration-200">
                 <div className="space-y-1">
                   <div className="inline-flex items-center gap-2 rounded-full bg-[#E8B86B]/10 px-3 py-1 text-xs text-[#E8B86B] border border-[#E8B86B]/20">
-                    <span>📍</span> Earth Coordinates
+                    <span>📍</span> {t.steps.pob.badge}
                   </div>
-                  <h1 className="text-2xl font-bold tracking-tight text-[#EDE9FA]">Where were you born?</h1>
+                  <h1 className="text-2xl font-bold tracking-tight text-[#EDE9FA]">{t.steps.pob.title}</h1>
                   <p className="text-sm text-[#A59FC8]">
-                    Enter your birth city and country to look up geographic coordinates and timezone.
+                    {t.steps.pob.desc}
                   </p>
                 </div>
 
                 <div className="space-y-3">
                   <div className="space-y-1">
-                    <label className="text-xs font-medium text-[#A59FC8]">Place of birth</label>
+                    <label className="text-xs font-medium text-[#A59FC8]">{t.steps.pob.fieldLabel}</label>
                     <input
                       type="text"
                       className={inp}
-                      placeholder="e.g. San Francisco, USA or Tokyo, Japan"
+                      placeholder={t.steps.pob.placeholder}
                       value={f.place}
                       autoFocus
                       onChange={handleTextChange("place")}
@@ -2022,7 +2173,7 @@ export default function App() {
 
                   {/* Popular quick picks */}
                   <div className="space-y-1.5">
-                    <span className="text-[11px] text-[#A59FC8]">Quick suggestions:</span>
+                    <span className="text-[11px] text-[#A59FC8]">{lang === "hi" ? "त्वरित सुझाव:" : "Quick suggestions:"}</span>
                     <div className="flex flex-wrap gap-1.5">
                       {["New York, USA", "London, UK", "Paris, France", "Tokyo, Japan", "Mumbai, India", "Sydney, Australia"].map(city => (
                         <button
@@ -2039,19 +2190,19 @@ export default function App() {
 
                   {/* Summary recap */}
                   <div className="rounded-xl border border-[#2E2752] bg-[#1A1533]/80 p-3 text-xs space-y-1 text-[#A59FC8]">
-                    <div className="font-semibold text-[#EDE9FA] mb-1">Your Chart Summary:</div>
+                    <div className="font-semibold text-[#EDE9FA] mb-1">{t.steps.pob.summaryTitle}:</div>
                     <div className="flex justify-between">
-                      <span>Name:</span> <span className="text-[#EDE9FA]">{f.name || "-"}</span>
+                      <span>{t.steps.name.label}:</span> <span className="text-[#EDE9FA]">{f.name || "-"}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span>Email:</span> <span className="text-[#EDE9FA]">{f.email || "-"}</span>
+                      <span>{t.steps.email.label}:</span> <span className="text-[#EDE9FA]">{f.email || "-"}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span>Born:</span> <span className="text-[#EDE9FA]">{f.date || "-"} at {f.time || "-"}</span>
+                      <span>{t.steps.pob.born}</span> <span className="text-[#EDE9FA]">{f.date || "-"} at {f.time || "-"}</span>
                     </div>
                     {photoUrl && (
                       <div className="flex justify-between items-center pt-1">
-                        <span>Portrait:</span>
+                        <span>{t.steps.pob.portrait}</span>
                         <img src={photoUrl} alt="avatar" className="h-6 w-6 rounded-full object-cover border border-[#E8B86B]" />
                       </div>
                     )}
@@ -2066,15 +2217,15 @@ export default function App() {
                       onChange={e => setOk(e.target.checked)}
                     />
                     <span>
-                      I agree to the{" "}
+                      {t.steps.pob.agreePrivacy}
                       <a href="/privacy-policy" target="_blank" rel="noreferrer" className="text-[#E8B86B] underline hover:text-[#FFE2A4]">
-                        Privacy Policy
-                      </a>{" "}
-                      and{" "}
-                      <a href="/terms" target="_blank" rel="noreferrer" className="text-[#E8B86B] underline hover:text-[#FFE2A4]">
-                        Terms &amp; Conditions
+                        {t.steps.pob.privacyPolicy}
                       </a>
-                      , and consent to calculating astrological charts from these details.
+                      {t.steps.pob.and}
+                      <a href="/terms" target="_blank" rel="noreferrer" className="text-[#E8B86B] underline hover:text-[#FFE2A4]">
+                        {t.steps.pob.terms}
+                      </a>
+                      {t.steps.pob.agreeConsent}
                     </span>
                   </label>
 
@@ -2097,10 +2248,10 @@ export default function App() {
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
                       </svg>
-                      Calculating Chart…
+                      {t.steps.pob.calculatingBtn}
                     </span>
                   ) : (
-                    "Calculate Birth Chart ✨"
+                    t.steps.pob.calcBtn
                   )}
                 </button>
               </section>
@@ -2111,14 +2262,14 @@ export default function App() {
         {/* STEP: ASK QUESTION PAGE */}
         {tab === "Home" && step === "ask" && (
           <div className="space-y-4 animate-in fade-in duration-200">
-            {/* Querent Overview Header (Chart removed from this page as requested) */}
+            {/* Querent Overview Header */}
             <div className={card + " border-[#E8B86B]/40 bg-gradient-to-r from-[#211A3D] to-[#2E204B] p-3.5 space-y-2"}>
               <div className="flex items-center justify-between">
                 <div>
                   <div className="text-[11px] uppercase tracking-wider text-[#E8B86B] font-semibold flex items-center gap-1.5">
-                    <span>✨</span> Birth Chart Ready
+                    <span>✨</span> {t.ask.chartReady}
                   </div>
-                  <div className="font-bold text-base text-[#EDE9FA]">{f.name || "Querent"}</div>
+                  <div className="font-bold text-base text-[#EDE9FA]">{f.name || (lang === "hi" ? "प्रयोक्ता" : "Querent")}</div>
                 </div>
                 <button
                   type="button"
@@ -2131,22 +2282,22 @@ export default function App() {
                   className="text-xs text-[#E8B86B] hover:text-[#FFE2A4] underline cursor-pointer shrink-0"
                   title="Calculate chart for another person"
                 >
-                  + New Chart
+                  {t.ask.newChart}
                 </button>
               </div>
 
               {(f.date || f.place) && (
                 <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-[#A59FC8] pt-1.5 border-t border-[#3E346B]/40">
-                  {f.date && <span>📅 Born: <strong className="text-[#EDE9FA]">{f.date}</strong>{f.time ? ` (${f.time})` : ""}</span>}
+                  {f.date && <span>📅 {t.ask.born} <strong className="text-[#EDE9FA]">{f.date}</strong>{f.time ? ` (${f.time})` : ""}</span>}
                   {f.place && <span>📍 <strong className="text-[#EDE9FA]">{f.place}</strong></span>}
                 </div>
               )}
             </div>
 
             <div className="space-y-1">
-              <h2 className="text-xl font-bold tracking-tight text-[#EDE9FA]">Ask your question</h2>
+              <h2 className="text-xl font-bold tracking-tight text-[#EDE9FA]">{t.ask.title}</h2>
               <p className="text-xs sm:text-sm text-[#A59FC8]">
-                What insights, career directions, or relationship alignments would you like to explore?
+                {t.ask.subtitle}
               </p>
             </div>
 
@@ -2154,7 +2305,7 @@ export default function App() {
               className={inp + " min-h-28 py-3 text-sm"}
               value={q}
               onChange={e => setQ(e.target.value)}
-              placeholder="e.g. What does my natal chart say about career growth in 2026?"
+              placeholder={t.ask.placeholder}
             />
 
             {/* Subscription banner if user is not yet subscribed */}
@@ -2163,7 +2314,7 @@ export default function App() {
                 <div className="flex items-center gap-2">
                   <span className="text-base">🔒</span>
                   <span>
-                    <strong className="text-[#E8B86B]">Subscription required:</strong> A membership plan is needed to view answers.
+                    <strong className="text-[#E8B86B]">{t.ask.subRequired}</strong> {t.ask.subRequiredDesc}
                   </span>
                 </div>
                 <button
@@ -2171,7 +2322,7 @@ export default function App() {
                   onClick={() => setTab("Plans")}
                   className="shrink-0 px-2.5 py-1 rounded-lg bg-[#E8B86B] text-[#1A1230] font-semibold text-xs hover:bg-[#FFE2A4] transition-colors cursor-pointer"
                 >
-                  View Plans →
+                  {t.ask.viewPlans}
                 </button>
               </div>
             )}
@@ -2187,12 +2338,12 @@ export default function App() {
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
                   </svg>
-                  Consulting the Stars…
+                  {t.ask.consulting}
                 </span>
               ) : sub ? (
-                "Analyze Chart & Question →"
+                t.ask.analyzeBtn
               ) : (
-                "Analyze Chart & Question (View Plans) →"
+                t.ask.analyzePlansBtn
               )}
             </button>
 
@@ -2208,10 +2359,10 @@ export default function App() {
                       </span>
                       <div>
                         <div className="text-xs uppercase tracking-wider text-[#E8B86B] font-bold">
-                          Astrological Reading
+                          {t.reading.title}
                         </div>
                         <div className="text-[11px] text-[#A59FC8]">
-                          Calculated for {f.name || "Querent"}
+                          {t.reading.calcFor} {f.name || (lang === "hi" ? "प्रयोक्ता" : "Querent")}
                         </div>
                       </div>
                     </div>
@@ -2222,7 +2373,7 @@ export default function App() {
 
                   {/* Querent question recap */}
                   <div className="bg-[#150F28] p-3 rounded-xl border border-[#2E2752] text-xs">
-                    <span className="text-[#A59FC8] font-medium block mb-0.5">Your Question:</span>
+                    <span className="text-[#A59FC8] font-medium block mb-0.5">{t.reading.yourQuestion}</span>
                     <span className="italic text-[#EDE9FA] font-medium">"{q}"</span>
                   </div>
 
@@ -2231,10 +2382,10 @@ export default function App() {
                     <div className="rounded-xl bg-gradient-to-r from-[#2C1E4E] to-[#1E173D] p-3.5 border border-[#E8B86B]/60 shadow-lg space-y-1.5 animate-in fade-in">
                       <div className="text-xs font-bold uppercase tracking-wider text-[#E8B86B] flex items-center justify-between">
                         <span className="flex items-center gap-1.5">
-                          <span>✨</span> Direct Celestial Answer
+                          <span>✨</span> {t.reading.directAnswer}
                         </span>
                         <span className="text-[10px] font-normal text-[#E8B86B]/90 bg-[#17102D] px-2 py-0.5 rounded-full border border-[#E8B86B]/30">
-                          AI Astrological Prediction
+                          {t.reading.aiPrediction}
                         </span>
                       </div>
                       <p className="text-sm font-semibold text-[#EDE9FA] leading-relaxed">
@@ -2246,7 +2397,7 @@ export default function App() {
                   {/* Summary / Core Answer */}
                   <div className="space-y-1.5">
                     <div className="text-xs font-bold uppercase tracking-wider text-[#E8B86B] flex items-center gap-1.5">
-                      <span>✨</span> Cosmic Synthesis
+                      <span>✨</span> {t.reading.synthesis}
                     </div>
                     <div className="text-sm font-semibold text-[#EDE9FA] leading-snug">
                       {currentAnswer.summary}
@@ -2259,14 +2410,14 @@ export default function App() {
                   {/* Key Planetary Influences */}
                   <div className="space-y-2 pt-1 border-t border-[#3E346B]/40">
                     <div className="text-[11px] font-bold uppercase tracking-wider text-[#A59FC8]">
-                      Key Planetary Placements For Your Query
+                      {t.reading.keyPlacements}
                     </div>
                     <div className="grid grid-cols-1 gap-2">
                       {currentAnswer.keyPlacements.map((p, idx) => (
                         <div key={idx} className="bg-[#1A1433] p-2.5 rounded-xl border border-[#2E2752] text-xs space-y-1">
                           <div className="flex items-center justify-between">
-                            <span className="font-bold text-[#E8B86B]">{p.planet} in {p.sign}</span>
-                            <span className="text-[11px] text-[#A59FC8] bg-[#241D42] px-2 py-0.5 rounded-md">House {p.house}</span>
+                            <span className="font-bold text-[#E8B86B]">{t.planets[p.planet] || p.planet} {lang === "hi" ? "में" : "in"} {t.zodiacs[p.sign] || p.sign}</span>
+                            <span className="text-[11px] text-[#A59FC8] bg-[#241D42] px-2 py-0.5 rounded-md">{t.reading.house} {p.house}</span>
                           </div>
                           <p className="text-[11px] text-[#D6D1EE] leading-relaxed">{p.relevance}</p>
                         </div>
@@ -2277,7 +2428,7 @@ export default function App() {
                   {/* Timing & Guidance */}
                   <div className="bg-[#241D42]/70 p-3 rounded-xl border border-[#3E346B]/50 space-y-2 text-xs">
                     <div className="font-semibold text-[#E8B86B] flex items-center gap-1.5">
-                      <span>⏳</span> Favorable Cycles &amp; Timing
+                      <span>⏳</span> {t.reading.timing}
                     </div>
                     <p className="text-[#EDE9FA] leading-relaxed text-[11px]">
                       {currentAnswer.timing}
@@ -2287,7 +2438,7 @@ export default function App() {
                   {/* Actionable Advice */}
                   <div className="space-y-1.5 pt-1 border-t border-[#3E346B]/40 text-xs">
                     <div className="text-[11px] font-bold uppercase tracking-wider text-[#A59FC8]">
-                      Celestial Guidance &amp; Takeaways
+                      {t.reading.advice}
                     </div>
                     <ul className="space-y-1.5 text-xs text-[#D6D1EE]">
                       {currentAnswer.cosmicAdvice.map((adv, idx) => (
@@ -2305,9 +2456,9 @@ export default function App() {
                       <span className="text-base">📲</span>
                       <span className="text-[#EDE9FA]">
                         {appAttached ? (
-                          <>Astro Reports is <strong className="text-emerald-300">attached to your screen</strong></>
+                          <>{t.reading.attachBannerDone}</>
                         ) : (
-                          <>Want faster 1-tap answers? <strong className="text-[#E8B86B]">Attach app to screen</strong></>
+                          <>{t.reading.attachBannerPrompt} <strong className="text-[#E8B86B]">{t.reading.attachBtn}</strong></>
                         )}
                       </span>
                     </div>
@@ -2316,12 +2467,12 @@ export default function App() {
                       onClick={() => setShowAttachModal(true)}
                       className="shrink-0 px-2.5 py-1 rounded-lg bg-[#E8B86B] text-[#1A1230] font-semibold text-xs hover:bg-[#FFE2A4] transition-colors cursor-pointer"
                     >
-                      {appAttached ? "View Details" : "Attach App →"}
+                      {appAttached ? t.reading.viewDetailsBtn : t.reading.attachBtn}
                     </button>
                   </div>
 
                   <div className="flex justify-between items-center pt-2 border-t border-[#2E2752] text-[11px] text-[#7C75A3]">
-                    <span>High-precision planetary ephemeris analysis</span>
+                    <span>{t.reading.ephemerisNote}</span>
                     <button
                       type="button"
                       onClick={() => {
@@ -2329,7 +2480,7 @@ export default function App() {
                       }}
                       className="text-[#E8B86B] hover:underline cursor-pointer"
                     >
-                      Ask another question ↑
+                      {t.reading.askAnother}
                     </button>
                   </div>
                 </div>
@@ -2345,13 +2496,13 @@ export default function App() {
               🔒
             </div>
             <div>
-              <div className="text-xl font-bold text-[#EDE9FA]">Your Report is Ready</div>
+              <div className="text-xl font-bold text-[#EDE9FA]">{t.locked.title}</div>
               <p className="text-sm text-[#D6D1EE] mt-1">
-                Your full planetary positions, houses, and aspect calculations are complete. Subscribe to unlock unlimited reports.
+                {t.locked.desc}
               </p>
             </div>
             <button className={btn} onClick={() => setTab("Plans")}>
-              View Subscription Plans
+              {t.locked.btn}
             </button>
           </div>
         )}
@@ -2360,7 +2511,7 @@ export default function App() {
         {tab === "Home" && step === "report" && cur && (
           <div className="space-y-5 animate-in fade-in duration-200">
             <div className="flex items-center justify-between">
-              <h1 className="text-2xl font-bold tracking-tight text-[#EDE9FA]">Your Report</h1>
+              <h1 className="text-2xl font-bold tracking-tight text-[#EDE9FA]">{t.report.title}</h1>
               <button
                 type="button"
                 onClick={() => {
@@ -2370,10 +2521,10 @@ export default function App() {
                 }}
                 className="text-xs text-[#E8B86B] hover:underline cursor-pointer"
               >
-                + New Chart
+                {t.report.newChart}
               </button>
             </div>
-            <Report r={cur} />
+            <Report r={cur} lang={lang} />
             <button
               className={btn}
               onClick={() => {
@@ -2382,7 +2533,7 @@ export default function App() {
                 setQ("");
               }}
             >
-              Calculate Another Report
+              {t.report.calcAnother}
             </button>
           </div>
         )}
@@ -2390,22 +2541,22 @@ export default function App() {
         {/* TAB: HISTORY */}
         {tab === "History" && (
           <div className="space-y-4 animate-in fade-in duration-200">
-            <h1 className="text-2xl font-bold tracking-tight text-[#EDE9FA]">History</h1>
+            <h1 className="text-2xl font-bold tracking-tight text-[#EDE9FA]">{t.history.title}</h1>
             {hist.length === 0 ? (
               <div className={card + " text-center py-8 text-[#A59FC8]"}>
                 <span className="text-3xl block mb-2">📜</span>
-                No reports generated yet.
+                {t.history.empty}
               </div>
             ) : (
               hist.map((r, i) =>
                 sub ? (
-                  <Report key={i} r={r} />
+                  <Report key={i} r={r} lang={lang} />
                 ) : (
                   <div key={i} className={card + " space-y-1"}>
                     <div className="font-medium text-[#EDE9FA]">{r.q}</div>
                     <div className="text-xs text-[#A59FC8] flex justify-between pt-1">
                       <span>{r.at}</span>
-                      <span className="text-[#E8B86B]">Locked · Subscribe to view</span>
+                      <span className="text-[#E8B86B]">{t.history.locked}</span>
                     </div>
                   </div>
                 )
@@ -2417,7 +2568,7 @@ export default function App() {
         {/* TAB: PROFILE */}
         {tab === "Profile" && (
           <div className="space-y-4 animate-in fade-in duration-200">
-            <h1 className="text-2xl font-bold tracking-tight text-[#EDE9FA]">Profile</h1>
+            <h1 className="text-2xl font-bold tracking-tight text-[#EDE9FA]">{t.profile.title}</h1>
             <div className={card + " space-y-4"}>
               <div className="flex items-center gap-3">
                 {photoUrl ? (
@@ -2428,11 +2579,11 @@ export default function App() {
                   </div>
                 )}
                 <div>
-                  <div className="font-semibold text-base text-[#EDE9FA]">{f.name || "Guest Querent"}</div>
-                  <div className="text-xs text-[#A59FC8]">{f.email || "No email provided"}</div>
+                  <div className="font-semibold text-base text-[#EDE9FA]">{f.name || t.profile.guest}</div>
+                  <div className="text-xs text-[#A59FC8]">{f.email || t.profile.noEmail}</div>
                   {isGoogleLogin && (
                     <span className="inline-block mt-1 text-[11px] text-[#8EF2B0]">
-                      ✓ Google Authenticated
+                      {t.profile.googleAuth}
                     </span>
                   )}
                 </div>
@@ -2440,24 +2591,24 @@ export default function App() {
 
               <div className="border-t border-[#2E2752] pt-3 space-y-2 text-xs">
                 <div className="flex justify-between">
-                  <span className="text-[#A59FC8]">Subscription Plan:</span>
-                  <span className="font-medium text-[#E8B86B]">{sub ? "Premium Active (Demo)" : "Free Explorer"}</span>
+                  <span className="text-[#A59FC8]">{t.profile.subPlan}</span>
+                  <span className="font-medium text-[#E8B86B]">{sub ? t.profile.premiumActive : t.profile.freeExplorer}</span>
                 </div>
                 {f.date && (
                   <div className="flex justify-between">
-                    <span className="text-[#A59FC8]">Date of Birth:</span>
+                    <span className="text-[#A59FC8]">{t.profile.dob}</span>
                     <span className="text-[#EDE9FA]">{f.date}</span>
                   </div>
                 )}
                 {f.time && (
                   <div className="flex justify-between">
-                    <span className="text-[#A59FC8]">Time of Birth:</span>
+                    <span className="text-[#A59FC8]">{t.profile.tob}</span>
                     <span className="text-[#EDE9FA]">{f.time}</span>
                   </div>
                 )}
                 {f.place && (
                   <div className="flex justify-between">
-                    <span className="text-[#A59FC8]">Birth City:</span>
+                    <span className="text-[#A59FC8]">{t.profile.birthCity}</span>
                     <span className="text-[#EDE9FA]">{f.place}</span>
                   </div>
                 )}
@@ -2466,9 +2617,9 @@ export default function App() {
 
             {/* Server Connection Details */}
             <div className={card + " space-y-2 text-xs"}>
-              <div className="font-semibold text-[#EDE9FA]">Server Connection</div>
+              <div className="font-semibold text-[#EDE9FA]">{t.profile.serverConn}</div>
               <div className="flex justify-between items-center">
-                <span className="text-[#A59FC8]">Backend URL:</span>
+                <span className="text-[#A59FC8]">{t.profile.backendUrl}</span>
                 <a
                   href={BACKEND_URL}
                   target="_blank"
@@ -2479,9 +2630,9 @@ export default function App() {
                 </a>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-[#A59FC8]">API Status:</span>
+                <span className="text-[#A59FC8]">{t.profile.apiStatus}</span>
                 <span className={serverOnline ? "text-emerald-400 font-medium" : "text-amber-400 font-medium"}>
-                  {serverOnline ? "Online (Express)" : "Offline"}
+                  {serverOnline ? t.profile.online : t.profile.offline}
                 </span>
               </div>
             </div>
@@ -2490,17 +2641,17 @@ export default function App() {
             <div className={card + " space-y-3 text-xs"}>
               <div className="flex items-center justify-between">
                 <div className="font-semibold text-[#EDE9FA] flex items-center gap-1.5">
-                  <span>🤖</span> ChatGPT AI Integration
+                  <span>🤖</span> {t.profile.chatgptTitle}
                 </div>
                 <span className={`text-[10px] px-2 py-0.5 rounded-full border ${openAiKey ? "text-emerald-300 border-emerald-500/40 bg-emerald-950/30" : "text-[#E8B86B] border-[#E8B86B]/30 bg-[#E8B86B]/10"}`}>
-                  {openAiKey ? "Custom Key Active" : "Server Env Default"}
+                  {openAiKey ? t.profile.customKeyActive : t.profile.serverEnvDefault}
                 </span>
               </div>
               <p className="text-[#A59FC8] leading-relaxed">
-                Empowers every query with direct predictions and clean astrological answers to your specific questions.
+                {t.profile.chatgptDesc}
               </p>
               <div className="space-y-1.5">
-                <label className="text-[11px] text-[#A59FC8] block">OpenAI / ChatGPT API Key:</label>
+                <label className="text-[11px] text-[#A59FC8] block">{t.profile.chatgptKeyLabel}</label>
                 <div className="flex gap-2">
                   <input
                     type="password"
@@ -2519,15 +2670,15 @@ export default function App() {
                       } else {
                         try { localStorage.removeItem("chatgpt_api_key"); } catch {}
                       }
-                      alert(trimmed ? "ChatGPT API Key saved successfully!" : "Key removed. Using server .env key.");
+                      alert(trimmed ? (lang === "hi" ? "चैटजीपीटी एपीआई की सफलतापूर्वक सुरक्षित हुई!" : "ChatGPT API Key saved successfully!") : (lang === "hi" ? "की हटा दी गई। डिफ़ॉल्ट सर्वर की प्रयुक्त होगी।" : "Key removed. Using server .env key."));
                     }}
                     className="shrink-0 px-3 py-1.5 rounded-xl bg-[#E8B86B] text-[#1A1230] font-semibold text-xs hover:bg-[#F2C77D] transition-colors cursor-pointer"
                   >
-                    Save
+                    {t.profile.save}
                   </button>
                 </div>
                 <p className="text-[10px] text-[#7C75A3]">
-                  Key can also be defined in <code className="text-[#E8B86B]">.env</code> as <code className="text-[#E8B86B]">OPENAI_API_KEY</code>.
+                  {t.profile.keyEnvHint}
                 </p>
               </div>
             </div>
@@ -2536,16 +2687,14 @@ export default function App() {
             <div className={card + " space-y-2.5 text-xs border-[#2E2752]"}>
               <div className="flex items-center justify-between">
                 <div className="font-semibold text-[#EDE9FA] flex items-center gap-1.5">
-                  <span>🔐</span> 30-Day Auto Login
+                  <span>🔐</span> {t.profile.autoLoginTitle}
                 </div>
                 <span className={`text-[10px] px-2 py-0.5 rounded-full border ${isLoggedIn ? "text-emerald-300 border-emerald-500/40 bg-emerald-950/30 font-medium" : "text-[#A59FC8] border-[#2E2752] bg-[#1A1533]"}`}>
-                  {isLoggedIn ? "Session Active (1 Month)" : "Guest Session"}
+                  {isLoggedIn ? t.profile.sessionActive : t.profile.guestSession}
                 </span>
               </div>
               <p className="text-[#A59FC8] leading-relaxed text-[11px]">
-                {isLoggedIn
-                  ? "Your session is preserved for 30 days in localStorage. When you launch the app, you will land directly on the Chat screen."
-                  : "Sign in with Google or enter your details once; your token will keep you logged in for 1 month."}
+                {isLoggedIn ? t.profile.autoLoginDescActive : t.profile.autoLoginDescGuest}
               </p>
               {isLoggedIn && (
                 <button
@@ -2567,7 +2716,7 @@ export default function App() {
                   }}
                   className="w-full mt-1 py-2 rounded-xl border border-rose-500/30 text-rose-300 hover:bg-rose-950/30 text-xs font-semibold transition-colors cursor-pointer"
                 >
-                  Sign Out / Reset Session
+                  {t.profile.signOut}
                 </button>
               )}
             </div>
@@ -2582,16 +2731,16 @@ export default function App() {
                 }}
                 className="w-full min-h-12 rounded-xl border border-[#2E2752] bg-[#1A1533] text-sm text-[#EDE9FA] hover:border-[#E8B86B] transition-colors cursor-pointer"
               >
-                Edit Birth Details
+                {t.profile.editDetails}
               </button>
 
               <div className="flex justify-center items-center gap-3 text-xs text-[#A59FC8] pt-1">
                 <a href="/privacy-policy" target="_blank" rel="noreferrer" className="hover:text-[#E8B86B] underline transition-colors">
-                  Privacy Policy
+                  {t.profile.privacyPolicy}
                 </a>
                 <span>•</span>
                 <a href="/terms" target="_blank" rel="noreferrer" className="hover:text-[#E8B86B] underline transition-colors">
-                  Terms &amp; Conditions
+                  {t.profile.terms}
                 </a>
               </div>
             </div>
@@ -2604,13 +2753,13 @@ export default function App() {
             {/* Header */}
             <div className="space-y-1">
               <div className="flex items-center justify-between">
-                <h1 className="text-2xl font-bold tracking-tight text-[#EDE9FA]">Membership Plans</h1>
+                <h1 className="text-2xl font-bold tracking-tight text-[#EDE9FA]">{t.plans.title}</h1>
                 <span className="inline-flex items-center gap-1 rounded-full bg-[#E8B86B]/15 px-2.5 py-0.5 text-[11px] font-semibold text-[#E8B86B] border border-[#E8B86B]/30">
-                  ⚡ UPI AutoPay
+                  {t.plans.tag}
                 </span>
               </div>
               <p className="text-xs text-[#A59FC8]">
-                Continuous planetary guidance powered by <strong>Razorpay UPI AutoPay &amp; Secure Payments</strong>.
+                {t.plans.desc}
               </p>
             </div>
 
@@ -2646,7 +2795,7 @@ export default function App() {
                   <div className="flex items-center gap-2">
                     <span className="flex h-2.5 w-2.5 rounded-full bg-emerald-400 animate-pulse" />
                     <span className="font-semibold text-sm text-emerald-300">
-                      Active AutoPay Membership
+                      {t.plans.activeMembership}
                     </span>
                   </div>
                   <span className="text-[11px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
@@ -2655,12 +2804,12 @@ export default function App() {
                 </div>
 
                 <div className="text-xs text-[#C5C0E2] leading-relaxed">
-                  Your cosmic membership is unlocked. Planetary transits, houses, and unlimited astrological query analyses are active.
+                  {t.plans.activeMembershipDesc}
                 </div>
 
                 <div className="flex flex-wrap items-center justify-between pt-2 border-t border-emerald-500/20 text-[11px] text-[#A59FC8] gap-2">
-                  <span>Payment Gateway: <strong>Razorpay Live NPCI</strong></span>
-                  <span>Manage or cancel anytime in your UPI / Banking App</span>
+                  <span>{t.plans.gatewayNote}</span>
+                  <span>{t.plans.cancelNote}</span>
                 </div>
               </div>
             )}
@@ -2669,9 +2818,9 @@ export default function App() {
             <div className={card + " space-y-2 border-[#2E2752]"}>
               <div className="flex justify-between items-center text-xs">
                 <label className="font-semibold text-[#EDE9FA] flex items-center gap-1.5">
-                  <span>📱</span> UPI Linked Mobile Number
+                  <span>📱</span> {t.plans.phoneLabel}
                 </label>
-                <span className="text-[10px] text-[#A59FC8]">Required for UPI mandate</span>
+                <span className="text-[10px] text-[#A59FC8]">{t.plans.phoneReq}</span>
               </div>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-[#E8B86B]">
@@ -2687,7 +2836,7 @@ export default function App() {
                 />
               </div>
               <p className="text-[10px] text-[#7C75A3]">
-                Your UPI app (GPay / PhonePe / Paytm / BHIM) or card provider will verify the payment on this number.
+                {t.plans.phoneDesc}
               </p>
             </div>
 
@@ -2718,7 +2867,7 @@ export default function App() {
                   <div className="flex justify-between items-start">
                     <div>
                       <span className="text-xs uppercase tracking-wider font-semibold text-[#A59FC8]">
-                        {p.savings || (p.id === "three_month" ? "Best Value Cosmic Pass" : "Standard Access")}
+                        {p.savings || (p.id === "three_month" ? (lang === "hi" ? "सर्वोत्तम मूल्य पास" : "Best Value Cosmic Pass") : (lang === "hi" ? "मानक एक्सेस" : "Standard Access"))}
                       </span>
                       <h3 className="font-bold text-base text-[#EDE9FA]">{p.name}</h3>
                       <p className="text-xs text-[#A59FC8]">{p.tagline}</p>
@@ -2744,10 +2893,10 @@ export default function App() {
                     onClick={() => initiateCheckout(p)}
                   >
                     {subLoading
-                      ? "Connecting Gateway..."
+                      ? (lang === "hi" ? "गेटवे से जुड़ रहे हैं..." : "Connecting Gateway...")
                       : isCurrentPlan
-                      ? "Current Active Plan ✓"
-                      : `Pay & Subscribe (₹${p.amount}) →`}
+                      ? (lang === "hi" ? "वर्तमान सक्रिय प्लान ✓" : "Current Active Plan ✓")
+                      : (lang === "hi" ? `भुगतान व सदस्यता (₹${p.amount}) →` : `Pay & Subscribe (₹${p.amount}) →`)}
                   </button>
                 </div>
               );
@@ -2757,7 +2906,7 @@ export default function App() {
             <div className="rounded-2xl border border-[#2E2752] bg-[#120D24]/80 p-3.5 space-y-2 text-center">
               <div className="flex items-center justify-center gap-2 text-xs font-semibold text-[#EDE9FA]">
                 <span>🔒</span>
-                <span>Powered by Razorpay Payments (UPI AutoPay, Cards &amp; Netbanking)</span>
+                <span>{lang === "hi" ? "Razorpay पेमेंट्स द्वारा सुरक्षित (UPI AutoPay, कार्ड्स और नेटबैंकिंग)" : "Powered by Razorpay Payments (UPI AutoPay, Cards & Netbanking)"}</span>
               </div>
               <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
                 {["Google Pay", "PhonePe", "Paytm", "BHIM UPI", "Cards", "NetBanking"].map(app => (
@@ -2770,7 +2919,9 @@ export default function App() {
                 ))}
               </div>
               <p className="text-[10px] text-[#7C75A3] pt-1 leading-relaxed">
-                NPCI &amp; RBI Compliant 256-bit Secure Gateway. Cancel or pause mandate anytime directly inside your UPI app under Settings → AutoPay.
+                {lang === "hi" 
+                  ? "NPCI एवं RBI अनुपालित 256-बिट सुरक्षित गेटवे। अपने UPI ऐप में सेटिंग्स → ऑटोपे से कभी भी मेंडेट रद्द करें।" 
+                  : "NPCI & RBI Compliant 256-bit Secure Gateway. Cancel or pause mandate anytime directly inside your UPI app under Settings → AutoPay."}
               </p>
             </div>
           </div>

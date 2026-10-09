@@ -399,6 +399,7 @@ export async function askAstrologyQuestion(params: {
   name?: string;
   chart: any;
   customApiKey?: string;
+  language?: "en" | "hi";
 }): Promise<AstrologicalAnswer> {
   // First attempt: call configured backend endpoint (e.g. Express server on :5000)
   try {
