@@ -2090,7 +2090,7 @@ export default function App() {
                   </button>
 
                   
-                  <div className="relative flex items-center justify-center my-3">
+                  {/* <div className="relative flex items-center justify-center my-3">
                     <div className="w-full border-t border-[#2E2752]" />
                     <span className="absolute bg-[#120D26] px-3 text-xs text-[#A59FC8]">
                       {lang === "hi" ? "या ईमेल दर्ज करें" : "or enter email manually"}
@@ -2109,7 +2109,7 @@ export default function App() {
                         setFormStep(2);
                       }
                     }}
-                  />
+                  /> */}
 
                   {isGoogleLogin && (
                     <div className="flex items-center gap-2 rounded-lg bg-[#273B2F] border border-[#3A6B4C] px-3 py-2 text-xs text-[#8EF2B0]">
