@@ -820,16 +820,19 @@ export default function App() {
     }
   };
 
+  const [flag,setflag]=useState('zero')
   const triggerGoogleSignIn = () => {
     const clientId = getEffectiveClientId();
 
     // If client ID is present and token client is not initialized yet, initialize it now
     if (clientId && !tokenClientRef.current && typeof window !== "undefined" && window.google) {
+      setflag('one')
       initGoogleAuth();
     }
 
     // If client ID is present and token client is ready, request access token with real Google account chooser
     if (clientId && tokenClientRef.current) {
+      setflag('two')
       setGoogleLoading(true);
       try {
         tokenClientRef.current.requestAccessToken({ prompt: "select_account" });
@@ -841,6 +844,7 @@ export default function App() {
     }
 
     if (clientId && typeof window !== "undefined" && window.google?.accounts?.id) {
+      setflag('three')
       try {
         window.google.accounts.id.prompt();
         return;
@@ -2086,6 +2090,8 @@ export default function App() {
                       </>
                     )}
                   </button>
+
+                  {flag}
 
                   <div className="relative flex items-center justify-center my-3">
                     <div className="w-full border-t border-[#2E2752]" />
