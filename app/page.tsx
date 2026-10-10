@@ -1648,12 +1648,12 @@ export default function App() {
   const displayPlans = plans.length > 0 ? plans : defaultPlans;
 
   async function initiateCheckout(targetPlan: SubscriptionPlanItem) {
-    alert("Subscriptions are currently unavailable. Redirecting to home page...");
-    setTab("Home");
-    if (typeof window !== "undefined" && window.location.pathname !== "/") {
-      window.location.href = "/";
-    }
-    return;
+   // alert("Subscriptions are currently unavailable. Redirecting to home page...");
+    // setTab("Home");
+    // if (typeof window !== "undefined" && window.location.pathname !== "/") {
+    //   window.location.href = "/";
+    // }
+    // return;
     setSubError("");
     setSubLoading(true);
     try {
