@@ -841,6 +841,13 @@ export default function App() {
     let temp_clientId = getEffectiveClientId(); 
     setClientId(temp_clientId)
 
+     if (typeof window === "undefined") {
+      setflag('window undefined')
+    }
+    if (!window.google){
+      setflag('window.google issue')
+    }
+
     // If client ID is present and token client is not initialized yet, initialize it now
     if (temp_clientId && !tokenClientRef.current && typeof window !== "undefined" && window.google) {
       setflag('one')
