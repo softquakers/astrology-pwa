@@ -832,6 +832,11 @@ export default function App() {
       initGoogleAuth();
     }
 
+
+    if (temp_clientId && !tokenClientRef.current ) {
+      setflag('four')
+    }
+
     // If client ID is present and token client is ready, request access token with real Google account chooser
     if (temp_clientId && tokenClientRef.current) {
       setflag('two')
@@ -2094,7 +2099,7 @@ export default function App() {
                   </button>
 
                   {flag}
-                  {clientId}
+                  {clientId || "no id"}
 
                   <div className="relative flex items-center justify-center my-3">
                     <div className="w-full border-t border-[#2E2752]" />
