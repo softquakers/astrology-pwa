@@ -856,7 +856,7 @@ export default function App() {
 
 
     if (temp_clientId && !tokenClientRef.current ) {
-      setflag('four')
+      //setflag('four')
     }
 
     // If client ID is present and token client is ready, request access token with real Google account chooser
