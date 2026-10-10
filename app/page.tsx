@@ -2381,8 +2381,8 @@ export default function App() {
 
                     {googleAuthBday ? (
                       <div className="flex items-center justify-center gap-1.5 text-[11px] text-[#8EF2B0] font-medium pt-1">
-                        <span>🔒</span>
-                        <span>{t.steps.faceReading.verifiedGoogleBadge} ({prediction.monthX})</span>
+                        {/* <span>🔒</span>
+                        <span>{t.steps.faceReading.verifiedGoogleBadge} ({prediction.monthX})</span> */}
                       </div>
                     ) : (
                       !isLoggedIn && (
