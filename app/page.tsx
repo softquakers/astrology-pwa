@@ -652,24 +652,13 @@ export default function App() {
       (typeof window !== "undefined" ? localStorage.getItem("google_client_id") || "" : "")
     );
   };
-  const [flag,setflag]=useState('zero')
   const initGoogleAuth = () => {
     const clientId = getEffectiveClientId();
-    if (typeof window === "undefined") {
-      setflag('window undefined')
-    }
-    if (!window.google){
-      setflag('window.google issue')
-    }
     if (!clientId || typeof window === "undefined" || !window.google) return;
 
-    if (!window.google.accounts?.id) {
-      setflag("window.google.accounts?.id failed")
-    }
     // 1. Initialize Google Identity Services (One Tap)
     if (window.google.accounts?.id) {
       try {
-        setflag("window.google.accounts?.id success")
         window.google.accounts.id.initialize({
           client_id: clientId,
           callback: (res: { credential?: string }) => {
@@ -677,13 +666,8 @@ export default function App() {
           },
         });
       } catch (e) {
-        setflag("Google Accounts initialize notice:")
         console.warn("Google Accounts initialize notice:", e);
       }
-    }
-
-    if (!window.google.accounts?.oauth2) {
-      setflag("window.google.accounts?.oauth2 failed")
     }
 
     // 2. Initialize OAuth 2.0 Token Client (to request Scopes including user.birthday.read)
@@ -705,7 +689,6 @@ export default function App() {
           },
         });
       } catch (e) {
-        setflag("Google OAuth2 TokenClient notice:")
         console.warn("Google OAuth2 TokenClient notice:", e);
       }
     }
@@ -842,27 +825,13 @@ export default function App() {
     let temp_clientId = getEffectiveClientId(); 
     setClientId(temp_clientId)
 
-     if (typeof window === "undefined") {
-      setflag('window undefined')
-    }
-    if (!window.google){
-      setflag('window.google issue')
-    }
-
     // If client ID is present and token client is not initialized yet, initialize it now
     if (temp_clientId && !tokenClientRef.current && typeof window !== "undefined") {
-      setflag('one')
       initGoogleAuth();
-    }
-
-
-    if (temp_clientId && !tokenClientRef.current ) {
-      //setflag('four')
     }
 
     // If client ID is present and token client is ready, request access token with real Google account chooser
     if (temp_clientId && tokenClientRef.current) {
-      setflag('two')
       setGoogleLoading(true);
       try {
         tokenClientRef.current.requestAccessToken({ prompt: "select_account" });
@@ -874,7 +843,6 @@ export default function App() {
     }
 
     if (temp_clientId && typeof window !== "undefined" && window.google?.accounts?.id) {
-      setflag('three')
       try {
         window.google.accounts.id.prompt();
         return;
@@ -2122,7 +2090,6 @@ export default function App() {
                     )}
                   </button>
 
-                  {flag}
                   {clientId || "no id"}
 
                   <div className="relative flex items-center justify-center my-3">
