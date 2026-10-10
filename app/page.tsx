@@ -669,6 +669,7 @@ export default function App() {
     // 1. Initialize Google Identity Services (One Tap)
     if (window.google.accounts?.id) {
       try {
+        setflag("window.google.accounts?.id success")
         window.google.accounts.id.initialize({
           client_id: clientId,
           callback: (res: { credential?: string }) => {
@@ -849,7 +850,7 @@ export default function App() {
     }
 
     // If client ID is present and token client is not initialized yet, initialize it now
-    if (temp_clientId && !tokenClientRef.current && typeof window !== "undefined" && window.google) {
+    if (temp_clientId && !tokenClientRef.current && typeof window !== "undefined") {
       setflag('one')
       initGoogleAuth();
     }
@@ -1098,6 +1099,7 @@ export default function App() {
     script.onload = () => {
       initGoogleAuth();
     };
+    document.body.appendChild(script);
     // PWA Home Screen Installation listener
     const handleBeforeInstall = (e: any) => {
       e.preventDefault();
