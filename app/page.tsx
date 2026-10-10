@@ -1904,10 +1904,13 @@ export default function App() {
 
         {/* Home Page Top Description in High Letter Size */}
         {tab === "Home" && (
-          <section className="text-center pt-2 pb-1">
+          <section className="text-center pt-2 pb-1 space-y-1.5">
             <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight leading-snug sm:leading-normal text-[#EDE9FA]">
               {t.heroHeadline}
             </h1>
+            <p className="text-sm sm:text-base font-semibold text-[#E8B86B]">
+              {t.heroSubHeadline}
+            </p>
           </section>
         )}
 
