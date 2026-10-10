@@ -5,6 +5,7 @@ export interface TranslationDictionary {
   appSubtitle: string;
   heroTitle: string;
   heroSubtitle: string;
+  heroHeadline: string;
   tabs: {
     home: string;
     history: string;
@@ -246,6 +247,7 @@ export const translations: Record<Language, TranslationDictionary> = {
     appSubtitle: "Astro Reports",
     heroTitle: "Astrology App",
     heroSubtitle: "We combine both birth chart analysis and face reading to predict your future. Shall we begin?",
+    heroHeadline: "First time in india an ai powered app that predict future using face reading techniques and astrology combined",
     tabs: {
       home: "Home",
       history: "History",
@@ -510,6 +512,7 @@ export const translations: Record<Language, TranslationDictionary> = {
     appSubtitle: "एस्ट्रो रिपोर्ट्स",
     heroTitle: "ज्योतिष ऐप",
     heroSubtitle: "हम आपका भविष्य बताने के लिए जन्म कुंडली और चेहरा पढ़ने की विद्या दोनों का एक साथ उपयोग करते हैं। क्या हम शुरू करें?",
+    heroHeadline: "भारत में पहली बार: चेहरा पढ़ने की तकनीक और ज्योतिष के संयोजन से भविष्य बताने वाला AI-संचालित ऐप",
     tabs: {
       home: "होम",
       history: "इतिहास",

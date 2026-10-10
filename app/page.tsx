@@ -1902,67 +1902,29 @@ export default function App() {
         </div>
       </header>
 
-        {/* Home Page Title Section */}
+        {/* Home Page Top Description in High Letter Size */}
         {tab === "Home" && (
-          <section className="space-y-1.5 text-center pt-1">
-            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#EDE9FA]">
-              {t.heroTitle}
+          <section className="text-center pt-2 pb-1">
+            <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight leading-snug sm:leading-normal text-[#EDE9FA]">
+              {t.heroHeadline}
             </h1>
-            <p className="text-xs text-[#A59FC8] leading-relaxed max-w-sm mx-auto">
-              {t.heroSubtitle}
-            </p>
           </section>
         )}
 
         {tab === "Home" && step === "form" && (
           <div className="space-y-6">
-            {/* Step Progress Bar */}
-            <div className="space-y-2">
+            {formStep > 0 && (
               <div className="flex items-center justify-between text-xs text-[#A59FC8]">
-                <div className="flex items-center gap-1.5 font-medium">
-                  {formStep > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => setFormStep(s => Math.max(0, s - 1))}
-                      className="mr-1 text-[#E8B86B] hover:text-[#FFE2A4] transition-colors flex items-center gap-1 cursor-pointer"
-                    >
-                      {t.steps.back}
-                    </button>
-                  )}
-                  <span>{t.steps.stepOf(formStep + 1, 7)}</span>
-                </div>
-                <span className="text-[#E8B86B] font-semibold">{stepsMeta[formStep].label}</span>
+                <button
+                  type="button"
+                  onClick={() => setFormStep(s => Math.max(0, s - 1))}
+                  className="text-[#E8B86B] hover:text-[#FFE2A4] transition-colors flex items-center gap-1 cursor-pointer"
+                >
+                  {t.steps.back}
+                </button>
+                <span className="text-[#E8B86B] font-semibold">{stepsMeta[formStep]?.label}</span>
               </div>
-
-              {/* Visual Progress Bar */}
-              <div className="h-1.5 w-full overflow-hidden rounded-full bg-[#1A1533] border border-[#2E2752]">
-                <div
-                  className="h-full bg-gradient-to-r from-[#8870FF] to-[#E8B86B] transition-all duration-300 ease-out"
-                  style={{ width: `${((formStep + 1) / 7) * 100}%` }}
-                />
-              </div>
-
-              {/* Progress Milestones */}
-              <div className="flex justify-between px-1 pt-1">
-                {stepsMeta.map((s, idx) => (
-                  <button
-                    key={s.label}
-                    type="button"
-                    disabled={idx > formStep}
-                    onClick={() => setFormStep(idx)}
-                    className={`flex flex-col items-center cursor-pointer transition-opacity ${
-                      idx === formStep
-                        ? "text-[#E8B86B] opacity-100"
-                        : idx < formStep
-                        ? "text-[#A59FC8] opacity-80 hover:opacity-100"
-                        : "text-[#544C7C] opacity-40 cursor-not-allowed"
-                    }`}
-                  >
-                    <span className="text-xs">{s.icon}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
+            )}
 
             {/* FIELD 1: NAME */}
             {formStep === 0 && (
@@ -1972,9 +1934,6 @@ export default function App() {
                     <span>👤</span> {t.steps.name.badge}
                   </div>
                   <h1 className="text-2xl font-bold tracking-tight text-[#EDE9FA]">{t.steps.name.title}</h1>
-                  <p className="text-sm text-[#A59FC8]">
-                    {t.steps.name.desc}
-                  </p>
                 </div>
 
                 <div className="space-y-3">
