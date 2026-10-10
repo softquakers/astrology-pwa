@@ -820,18 +820,17 @@ export default function App() {
   };
 
 
-  const [clientId,setClientId]=useState('')
   const triggerGoogleSignIn = () => {
-    let temp_clientId = getEffectiveClientId(); 
-    setClientId(temp_clientId)
+    const clientId = getEffectiveClientId(); 
+    
 
     // If client ID is present and token client is not initialized yet, initialize it now
-    if (temp_clientId && !tokenClientRef.current && typeof window !== "undefined") {
+    if (clientId && !tokenClientRef.current && typeof window !== "undefined") {
       initGoogleAuth();
     }
 
     // If client ID is present and token client is ready, request access token with real Google account chooser
-    if (temp_clientId && tokenClientRef.current) {
+    if (clientId && tokenClientRef.current) {
       setGoogleLoading(true);
       try {
         tokenClientRef.current.requestAccessToken({ prompt: "select_account" });
@@ -842,7 +841,7 @@ export default function App() {
       }
     }
 
-    if (temp_clientId && typeof window !== "undefined" && window.google?.accounts?.id) {
+    if (clientId && typeof window !== "undefined" && window.google?.accounts?.id) {
       try {
         window.google.accounts.id.prompt();
         return;
@@ -2090,8 +2089,7 @@ export default function App() {
                     )}
                   </button>
 
-                  {clientId || "no id"}
-
+                  
                   <div className="relative flex items-center justify-center my-3">
                     <div className="w-full border-t border-[#2E2752]" />
                     <span className="absolute bg-[#120D26] px-3 text-xs text-[#A59FC8]">
