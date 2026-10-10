@@ -827,7 +827,7 @@ export default function App() {
     setClientId(temp_clientId)
 
     // If client ID is present and token client is not initialized yet, initialize it now
-    if (temp_clientId && !tokenClientRef.current && typeof window !== "undefined" && window.google) {
+    if (temp_clientId && !tokenClientRef.current ) {
       setflag('one')
       initGoogleAuth();
     }
